@@ -1,0 +1,1037 @@
+<h1 id="proyecto-de-proyectos--v16">Proyecto de Proyectos — v1.6</h1>
+
+<blockquote>
+  <p>Plan estratégico para desarrollar proyectos en cartera como
+solopreneur, mediante orquestación de un enjambre de LLMs.
+Equipo bueno, no perfecto. Starter Kit completo desde el día 1.</p>
+
+  <p><strong>Versión:</strong> 1.6 · <strong>Fecha:</strong> 18 de mayo de 2026
+<strong>Reemplaza:</strong> v1.5 (incorpora aprendizajes del primer proyecto real
+en operación + el modelo de tests rojos pre-cargados validado).
+<strong>Documentos hermanos:</strong> <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md</code>,
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md</code>,
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>,
+<code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code></p>
+</blockquote>
+
+<hr />
+
+<h2 id="0-cambios-desde-v15">0. Cambios desde v1.5</h2>
+
+<p>Esta versión integra dos fuentes de aprendizaje:</p>
+
+<ul>
+  <li><strong>El primer proyecto real del enjambre</strong> en operación (Épica 4 en
+curso al cierre del documento), del que se rescatan patrones
+operacionales no documentados en v1.5.</li>
+  <li><strong>El modelo de tests rojos pre-cargados</strong> diseñado y validado por
+separado, que reemplaza al modelo de v1.5 basado en
+<code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code> + hash determinístico per-épica.</li>
+</ul>
+
+<p><strong>Cambios principales:</strong></p>
+
+<ol>
+  <li><strong>Tests rojos pre-cargados</strong> reemplazan al modelo de hashes
+per-épica. Los tests viven en el body del Issue (fuente de verdad);
+un workflow los materializa como primer commit de la rama
+(subject: <code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>); un check verifica
+blob SHA per-archivo en cada PR; degradación graciosa por convención
+de commit cuando un Issue no lleva tests. Ver §3 Fase 4 y <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §11.6</code>.</li>
+  <li><strong>G no audita PR.</strong> Clarificación de roles: G actúa como ejecutor
+(J) y como co-auditor de documentación en chat con D. <strong>No audita
+PR</strong>, punto. La auditoría de PR es exclusiva de D.</li>
+  <li><strong>Label <code class="language-plaintext highlighter-rouge">requires-architect-review</code> → <code class="language-plaintext highlighter-rouge">requires-human-review</code>.</strong>
+Alineamiento con la nomenclatura del proyecto real en operación.
+<code class="language-plaintext highlighter-rouge">architect-approved</code> (aplicada manualmente por el arquitecto sobre
+N1/N2) se mantiene.</li>
+  <li><strong>N2 como par <code class="language-plaintext highlighter-rouge">.md</code> + script bash.</strong> El N2 de un bloque es ahora
+explícitamente un par de archivos: un documento markdown legible
+(fuente de verdad) acompañado por un script bash que sube los
+Issues a GitHub. D+G auditan ambos a ojo y verifican consistencia.</li>
+  <li><strong>Regla inviolable: el ejecutor nunca edita el Issue.</strong> La etiqueta
+<code class="language-plaintext highlighter-rouge">jules</code> (o equivalente del ejecutor) <strong>nunca se retira</strong>. La única
+“edición” del Issue por la máquina es la aplicación inicial
+automática de la etiqueta tras éxito completo del workflow de
+preparación. Toda otra modificación del Issue la hace el arquitecto
+humano.</li>
+  <li><strong>JULES_PAT como “firma del jefe”.</strong> El PAT del arquitecto no es
+solo permisos elevados; es <strong>marca de procedencia</strong>: cuando un
+workflow opera con este PAT, el ejecutor reconoce que la acción
+viene del jefe y obedece (incluso a comentarios automáticos del
+workflow que incluyen <code class="language-plaintext highlighter-rouge">@jules</code>). El nombre <code class="language-plaintext highlighter-rouge">JULES_PAT</code> se mantiene
+por convención operacional.</li>
+  <li><strong>Revisor de épica: O obligatorio, D opcional.</strong> O recibe <code class="language-plaintext highlighter-rouge">.zip</code>
+del repo y produce reporte profundo. D puede recibir un <code class="language-plaintext highlighter-rouge">.md</code>
+concatenado equivalente (un script del arquitecto recorre el repo
+y concatena los archivos de texto en un solo markdown). El
+arquitecto compara ambas auditorías cuando invoca a las dos. Sin
+apuros: una épica puede revisarse mientras J trabaja en otra.</li>
+  <li><strong>Patrones operacionales rescatados del proyecto real:</strong>
+mensajes-instrucción al agente embebidos en errores de CI,
+auto-aplicación de <code class="language-plaintext highlighter-rouge">requires-human-review</code> por complejidad
+declarada, lista exhaustiva de <code class="language-plaintext highlighter-rouge">PROTECTED_PATTERNS</code> multi-stack,
+<code class="language-plaintext highlighter-rouge">skip_validators</code> como input del orquestador, concurrencia
+diferenciada entre orquestador y auto-merge, <code class="language-plaintext highlighter-rouge">sleep</code> antes de
+asignar siguiente tarea, helpers de CI con fallback inline,
+bootstrap y codegen como pasos previos del CI, fallback en cascada
+para detectar Issue cerrado, <code class="language-plaintext highlighter-rouge">project_manifest.json</code> y
+<code class="language-plaintext highlighter-rouge">branch_protections_rules.sh</code> como artefactos canónicos, scripts
+de creación de Issues por bloque, DoD como checkboxes editables,
+campos “Rutas afectadas” y “Comandos extra” en el formulario,
+<code class="language-plaintext highlighter-rouge">Issue link required</code> y CHANGELOG validation como gates de
+governance. Detalle completo en <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §0</code>.</li>
+  <li><strong>Tests sobre las herramientas del kit como regla</strong>, no
+recomendación. Toda herramienta del kit que decida el destino de
+un PR debe tener su propia suite de tests que corra en CI.</li>
+  <li><strong>“Te informo que serás auditado” como recurso operacional
+documentado.</strong> Nota explícita en el v1.6 sobre cómo se opera con
+O en sesiones de diseño cuando se quiere mejorar la calidad del
+output: anteceder con esa frase activa cuidado adicional. Ver
+<code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §11.3</code>.</li>
+</ol>
+
+<p><strong>Eliminaciones:</strong></p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code> como prescripción rígida de ubicación de
+tests.</li>
+  <li><code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/</code> y archivos <code class="language-plaintext highlighter-rouge">epic-NNN.txt</code>.</li>
+  <li>Cálculo de hash con <code class="language-plaintext highlighter-rouge">shasum -a 256</code> o script Python equivalente.</li>
+  <li>Comentario del workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> al Issue tras
+preparación exitosa (redundante con el body imperativo del Issue).</li>
+  <li>“Cierre” en lugar de “revisión” donde quedaba alguna referencia
+residual.</li>
+</ul>
+
+<hr />
+
+<h2 id="1-propósito">1. Propósito</h2>
+
+<p>El operador es un arquitecto con cuarenta años de experiencia en
+desarrollo de software. Ese expertise valida la metodología: lo que
+funciona manualmente —dividir en piezas pequeñas, escribir contratos
+inmutables, auditar al cierre— se escala con tres familias de LLMs
+apoyando.</p>
+
+<p>El objetivo es operar varios proyectos delegando la mayor parte del
+ciclo de vida al enjambre. La cartera distribuye la latencia humana:
+si un proyecto está esperando una decisión, los demás avanzan. La
+cola del humano se gestiona desde un panel consolidado, no abriendo
+seis repos.</p>
+
+<p><strong>Sin cronograma.</strong> El sistema se opera al ritmo del arquitecto
+humano. La unidad de progreso es la <strong>épica</strong> y el <strong>Issue</strong>, no el
+mes ni el día. Esa decisión es deliberada: el arquitecto no rinde
+cuentas a nadie y prefiere romper el paradigma del sprint board.</p>
+
+<p><strong>Equipo bueno, no perfecto.</strong> Esa es la consigna operativa. El
+sistema no busca atrapar todos los errores; busca atraparlos
+suficientemente rápido para que las sesiones del arquitecto rindan,
+y que los errores que pasan sean detectables (no silenciosos) y
+corregibles a bajo costo. Los LLMs se equivocarán. El humano también.
+El sistema acomoda eso por construcción.</p>
+
+<p><strong>Lo que el sistema sí promete</strong>:</p>
+
+<ul>
+  <li>Detectar errores graves antes de que contaminen <code class="language-plaintext highlighter-rouge">main</code>.</li>
+  <li>Mantener al humano informado sin atraparlo en cada decisión.</li>
+  <li>Acumular evidencia legible (no agregada en una BD) de qué funciona.</li>
+  <li>Ser una herramienta sincera: el auditor aprueba lo razonable y
+comenta lo dudoso, sin bloquear por pedantería.</li>
+</ul>
+
+<p><strong>Lo que el sistema no promete</strong>:</p>
+
+<ul>
+  <li>Ser infalible. La IA se equivoca; los humanos también.</li>
+  <li>Ser perfecto desde el día 1. Se calibra operando.</li>
+  <li>Eliminar al humano. Es juez de último recurso por diseño.</li>
+  <li>Operar contra reloj. La cadencia es la del arquitecto.</li>
+</ul>
+
+<p>Principios del <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §3</code> (P1-P10) vigentes.</p>
+
+<hr />
+
+<h2 id="2-el-enjambre-tres-familias-roles-distintos">2. El enjambre: tres familias, roles distintos</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rol</th>
+      <th>Modelo</th>
+      <th>Acceso</th>
+      <th>Modalidad</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Arquitecto (O)</strong></td>
+      <td>Claude Opus 4.7</td>
+      <td>Claude Max 20x ($200/mes)</td>
+      <td>Manual, chat</td>
+    </tr>
+    <tr>
+      <td><strong>Co-auditor docs A (G)</strong></td>
+      <td>Gemini 3.1 Pro vía chat</td>
+      <td>Google AI Pro ($20/mes)</td>
+      <td>Manual, chat</td>
+    </tr>
+    <tr>
+      <td><strong>Co-auditor docs B + auditor PR (D)</strong></td>
+      <td>DeepSeek V4 Pro (chat) y V4 Flash (API)</td>
+      <td>API directa + chat</td>
+      <td>Mixto</td>
+    </tr>
+    <tr>
+      <td><strong>Ejecutor (J)</strong></td>
+      <td>Gemini 3.1 Pro (Jules)</td>
+      <td>Incluido en Google AI Pro</td>
+      <td>Automático, VM Google Cloud</td>
+    </tr>
+    <tr>
+      <td><strong>Revisor de épica (O obligatorio, D opcional)</strong></td>
+      <td>Opus 4.7 y DeepSeek V4 Pro</td>
+      <td>Chat manual</td>
+      <td>Bajo invocación del arquitecto</td>
+    </tr>
+    <tr>
+      <td><strong>QA humano (opcional, reservado)</strong></td>
+      <td>“Usuario bruto”</td>
+      <td>Post-merge manual</td>
+      <td>A definir cuando se incorpore</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Cambios respecto a v1.5:</strong></p>
+
+<ul>
+  <li>G <strong>no audita PR</strong> (clarificación). G es ejecutor (J) y co-auditor
+de docs en chat. D V4 Flash es el único auditor de PR vía API en
+<code class="language-plaintext highlighter-rouge">audit-pr.yml</code>.</li>
+  <li>D puede actuar como revisor opcional de épica en chat, recibiendo
+un <code class="language-plaintext highlighter-rouge">.md</code> concatenado del repo (no <code class="language-plaintext highlighter-rouge">.zip</code>, que D V4 Pro no acepta).</li>
+  <li>El comentario tabular incluye al revisor de épica como rol nombrado
+(antes implícito en la descripción de O).</li>
+</ul>
+
+<p>Defensas mecánicas contra manipulación del ejecutor: <strong>blob SHA
+per-archivo del commit scaffold + diff contra rama base + CI contra
+checkout limpio</strong>. Detalle en <code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9</code>.</p>
+
+<p><strong>Riesgo residual aceptado (R1)</strong>: Gemini ocupa dos roles distintos
+(co-auditor de docs en chat + Jules ejecutor en VM), compartiendo
+sesgos. Mitigación: revisión de épica con O cuando el arquitecto la
+invoque, opción de revisión paralela con D, y telemetría que detecta
+patrones de aprobación coordinada sospechosa cross-proyecto.</p>
+
+<hr />
+
+<h2 id="3-flujo-end-to-end">3. Flujo end-to-end</h2>
+
+<h3 id="fase-1--conceptual-manual-con-o">Fase 1 — Conceptual (manual, con O)</h3>
+
+<p>Conversación con O en chat. Documentos: Inception, Visión, Glosario,
+UI/UX (si aplica), Arquitectura, Stack, Modelo de datos, CI/CD,
+Backlog N1.</p>
+
+<p>El N1 declara:</p>
+
+<ul>
+  <li><strong>Épicas</strong> explícitas (sin tope de tamaño).</li>
+  <li><strong>Grafo de dependencias</strong> entre épicas (<code class="language-plaintext highlighter-rouge">depends-on: [epic-NN, ...]</code>
+o <code class="language-plaintext highlighter-rouge">depends-on: none</code>).</li>
+  <li><strong>Épicas raíz</strong> que se pueden trabajar en paralelo (si la cartera
+está activa con varios proyectos).</li>
+</ul>
+
+<h3 id="fase-2--planificación-por-bloque-manual-con-o">Fase 2 — Planificación por bloque (manual, con O)</h3>
+
+<p>O genera el <strong>N2 del bloque como par de archivos</strong>:</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">N2-epic-EE-bloque-NN.md</code></strong> (fuente de verdad). Describe el
+bloque en prosa: contexto, alcance, lista de Issues con criterios
+de aceptación, <strong>tests rojos pre-cargados por Issue</strong>, ADRs si
+aplica.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">N2-epic-EE-bloque-NN.sh</code></strong> (consecuencia). Script bash idempotente
+que sube los Issues a GitHub poblando el body de cada Issue con la
+sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code> extraída del <code class="language-plaintext highlighter-rouge">.md</code>.</li>
+</ul>
+
+<p>Ambos archivos se versionan en <code class="language-plaintext highlighter-rouge">docs/backlog/</code> o equivalente. Nada se
+borra; el script queda como historia.</p>
+
+<p><strong>Definición de bloque</strong>: agrupación de Issues que O diseña en una
+sola sesión coherente. <strong>El tamaño del bloque lo decide O</strong>, según su
+análisis de capacidad por sesión para producir tests robustos sin
+saturación. No hay tope numérico. En el análisis preliminar de cada
+épica, O propone cómo dividirla en bloques.</p>
+
+<p><strong>Recurso operacional honesto</strong> (<code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §11.3</code>):
+anteceder cada sesión de diseño con O con una frase tipo <em>“Vamos con
+el Bloque N. Te informo que será auditado, así que haz tu mejor
+esfuerzo”</em> mejora la calidad observable del output.</p>
+
+<h3 id="fase-3--auditoría-dual-de-documentos-manual-en-chat">Fase 3 — Auditoría dual de documentos (manual, en chat)</h3>
+
+<p>El arquitecto humano lleva el par N2 (<code class="language-plaintext highlighter-rouge">.md</code> + script) a sesión manual
+en chat con D y G como co-auditores, usando
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>.</p>
+
+<p>Checklist estructurado (ver el prompt para detalle):</p>
+
+<ul>
+  <li>¿El <code class="language-plaintext highlighter-rouge">.md</code> es internamente coherente? (Cobertura del N1, criterios
+de aceptación, tests bien especificados.)</li>
+  <li>¿El script bash refleja fielmente lo decretado en el <code class="language-plaintext highlighter-rouge">.md</code>? (No
+introduce ni omite Issues, no edita textos del body más allá del
+formato.)</li>
+  <li>¿Las rutas y nombres del scaffold (rama, archivos de test) son
+consistentes entre <code class="language-plaintext highlighter-rouge">.md</code> y script?</li>
+  <li>¿Los tests pre-cargados de cada Issue son falsables, no
+tautológicos?</li>
+  <li>¿Los ADRs requeridos están presentes y bien formados?</li>
+  <li>¿Las dependencias entre Issues (referencias <code class="language-plaintext highlighter-rouge">E##-###</code>) son
+acíclicas?</li>
+</ul>
+
+<p><strong>Mentalidad de los auditores</strong>: razonable, no perfecto. Aprueban si
+los documentos son defendibles. Bloquean solo en categorías graves.
+Las dudas menores van como comentarios.</p>
+
+<p><strong>Ciclos de iteración</strong>: 2-3 rondas en chat, dependiendo de la
+complejidad. No hay número fijo: cuando el arquitecto siente que el
+par está defendible, lo aprueba.</p>
+
+<p><strong>Aprobación final</strong>: el arquitecto humano aplica la label
+<code class="language-plaintext highlighter-rouge">architect-approved</code> al documento (o al PR si los docs vienen vía PR
+posterior). Esta aprobación es el gate G1 — sin ella no se ejecuta el
+script bash de creación de Issues.</p>
+
+<p><strong>Función red-team</strong>: integrada en la misma sesión D+G. La auditoría
+adversarial de tests (¿son falsables? ¿hay tautologías?) es parte del
+checklist arriba, no un paso separado.</p>
+
+<h3 id="fase-4--creación-de-issues-y-preparación-de-ramas">Fase 4 — Creación de Issues y preparación de ramas</h3>
+
+<p>El arquitecto ejecuta el script bash aprobado. Los Issues quedan
+creados en GitHub con:</p>
+
+<ul>
+  <li>Cuerpo estructurado con criterios de aceptación.</li>
+  <li>
+    <p>Sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code> con bloques fenced del tipo:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```dart:packages/core_kit/test/models/foo_test.dart
+...
+```
+</code></pre></div>    </div>
+  </li>
+  <li>Rama declarada explícitamente:
+<code class="language-plaintext highlighter-rouge">## 🌿 Rama asignada: feat/EE-NNN-slug-descriptivo</code></li>
+  <li>Referencias a Issues previos (<code class="language-plaintext highlighter-rouge">E##-###</code>) cuando hay dependencia
+explícita.</li>
+  <li>Labels: <code class="language-plaintext highlighter-rouge">jules-task</code>, <code class="language-plaintext highlighter-rouge">status/ready</code>, <code class="language-plaintext highlighter-rouge">epic/eEE</code>, <code class="language-plaintext highlighter-rouge">type/*</code>,
+<code class="language-plaintext highlighter-rouge">component/*</code> según corresponda.</li>
+</ul>
+
+<p><strong>Cuando el orquestador asigna el Issue</strong> (o el arquitecto lo asigna
+manualmente con <code class="language-plaintext highlighter-rouge">workflow_dispatch</code>), el workflow
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> se ejecuta:</p>
+
+<ol>
+  <li>Lee el body del Issue y los labels.</li>
+  <li>Determina el nombre de la rama (desde el body, o computado como
+fallback).</li>
+  <li>Parsea la sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>.</li>
+  <li>Crea la rama desde <code class="language-plaintext highlighter-rouge">main</code>.</li>
+  <li>Si hay tests, los escribe a disco y hace commit
+<code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>.</li>
+  <li>Si no hay tests (Issue de docs, chore puro), hace commit vacío
+<code class="language-plaintext highlighter-rouge">chore(EXX-NNN): initialize branch for #N</code>.</li>
+  <li>Push de la rama.</li>
+  <li><strong>Aplica el label <code class="language-plaintext highlighter-rouge">jules</code> como paso final atómico.</strong> Si algo en
+los pasos 1-7 falla, el label nunca se aplica y J no toma la tarea.</li>
+</ol>
+
+<p>El workflow <strong>no comenta el Issue</strong> (el body ya tiene las
+instrucciones imperativas). El audit trail vive en el log de Actions.</p>
+
+<p>Detalle del modelo en <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §11.6</code>.
+Detalle del check de inmutabilidad en
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9</code>.</p>
+
+<h3 id="fase-5--ejecución-j">Fase 5 — Ejecución (J)</h3>
+
+<p>J detecta el Issue con label <code class="language-plaintext highlighter-rouge">jules</code>. Lee el body imperativo, hace
+<code class="language-plaintext highlighter-rouge">git fetch &amp;&amp; git checkout feat/EE-NNN-...</code>. La rama está roja: los
+tests existen pero el código de producción no.</p>
+
+<p>J implementa el código de producción que haga pasar los tests.
+<strong>No modifica el scaffold de tests.</strong> Si necesita tests adicionales,
+los agrega en archivos nuevos.</p>
+
+<p>J ejecuta <code class="language-plaintext highlighter-rouge">bash tools/ci/light.sh</code> (o equivalente) durante el
+desarrollo, y <code class="language-plaintext highlighter-rouge">bash tools/ci/full.sh</code> antes de abrir PR. <strong>Abre PR
+contra <code class="language-plaintext highlighter-rouge">main</code></strong> con título Conventional Commits y cuerpo que
+incluye <code class="language-plaintext highlighter-rouge">Closes #N</code>.</p>
+
+<p><strong>Reintentos</strong>: máximo 3 corridas fallidas del script completo. Tras
+la tercera, el orquestador aplica <code class="language-plaintext highlighter-rouge">requires-human-review</code> al PR,
+<code class="language-plaintext highlighter-rouge">blocked</code> al Issue, y abre Issue de incidente.</p>
+
+<p><strong>Apelación del ejecutor</strong>: si J falla el mismo test pre-cargado 3
+veces con el mismo error, aplica label <code class="language-plaintext highlighter-rouge">suspect-contract</code>. Esto
+dispara revisión humana inmediata del test, no del código. Si el test
+estaba mal especificado, el arquitecto sigue una de las dos vías de
+modificación legítima descritas en
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9.5</code>.</p>
+
+<p><strong>Regla inviolable</strong>: J nunca edita el Issue (excepto marcar
+checkboxes del DoD). La etiqueta <code class="language-plaintext highlighter-rouge">jules</code> nunca se retira por J.</p>
+
+<h3 id="fase-6--validación-en-ci">Fase 6 — Validación en CI</h3>
+
+<p>Validadores en paralelo del orquestador:</p>
+
+<ul>
+  <li><strong>CI funcional</strong>: script completo (<code class="language-plaintext highlighter-rouge">full.sh</code>) contra checkout
+limpio. Incluye bootstrap + codegen + format + analyze + tests +
+cobertura + docs build.</li>
+  <li><strong>Governance</strong>: secret scan, dep review, título Conventional
+Commits, tamaño de PR, <code class="language-plaintext highlighter-rouge">Issue link required</code>, <strong>check de
+inmutabilidad del scaffold</strong> (<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>),
+CHANGELOG validation.</li>
+  <li><strong>Auditor LLM de PR</strong>: D V4 Flash con cache de prefijos sobre
+system prompt + ADRs + AGENTS.md. Ver
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md</code>.</li>
+</ul>
+
+<p><strong>Estructura del prompt del auditor de PR</strong> (consigna operativa):</p>
+
+<blockquote>
+  <p>“Audita este PR contra el Issue enlazado y los ADRs vigentes.
+Aprueba (<code class="language-plaintext highlighter-rouge">audit/pass</code>) si el cambio es razonable, ejecuta el
+contrato del Issue, y no introduce regresiones evidentes. Bloquea
+(<code class="language-plaintext highlighter-rouge">audit/fail</code>) solo si hay categorías graves: violación del scaffold
+de tests, contrato público roto, riesgo de seguridad, dependencia
+no autorizada, cambio fuera del scope del Issue. Las dudas menores
+(estilo, optimizaciones, alternativas) van como comentarios, no
+bloquean.</p>
+
+  <p>Tu objetivo es velocidad con calidad defendible, no pureza
+académica.”</p>
+</blockquote>
+
+<p>Veredicto: <code class="language-plaintext highlighter-rouge">audit/pass</code> o <code class="language-plaintext highlighter-rouge">audit/fail</code>. El gate <code class="language-plaintext highlighter-rouge">all_green</code> exige
+<code class="language-plaintext highlighter-rouge">audit/pass</code>.</p>
+
+<p><strong>Telemetría como comentario estructurado</strong>: al cerrar cada PR, el
+orquestador publica un comentario fijado en formato:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[telemetry]
+auditor: pr-auditor
+model: deepseek-v4-flash
+iteraciones: 4
+tokens_executor: 12,400
+prompt_tokens: 8,200
+completion_tokens: 3,200
+reasoning_tokens: 0
+cache_hit_inferred: true
+result: pass
+duración_seg: 23
+trigger: synchronize
+falso_positivo: false
+</code></pre></div></div>
+
+<p>Buscable con <code class="language-plaintext highlighter-rouge">gh pr list --search "[telemetry]"</code>. <strong>No hay BD que
+mantener.</strong></p>
+
+<h3 id="fase-7--gates-humanos">Fase 7 — Gates humanos</h3>
+
+<p>Label <code class="language-plaintext highlighter-rouge">requires-human-review</code> detiene auto-merge. Se aplica:</p>
+
+<ul>
+  <li>Paths protegidos (workflows, manifiestos, migraciones, ADRs,
+archivos del scaffold).</li>
+  <li>Superficie arquitectónica.</li>
+  <li><code class="language-plaintext highlighter-rouge">main</code> rota.</li>
+  <li><code class="language-plaintext highlighter-rouge">audit/fail</code> sin resolver.</li>
+  <li><code class="language-plaintext highlighter-rouge">suspect-contract</code> aplicada por J.</li>
+  <li>Complejidad declarada como <code class="language-plaintext highlighter-rouge">large</code> en el formulario del Issue
+(auto-aplicada por el workflow <code class="language-plaintext highlighter-rouge">issue-form-labels.yml</code>).</li>
+  <li>Manualmente por el arquitecto.</li>
+</ul>
+
+<p><strong>Concurrencia per-repo</strong>: el orquestador mantiene
+<code class="language-plaintext highlighter-rouge">docs/orchestrator/state.json</code> con estado del repo. <strong>Dentro del
+mismo repo</strong>, no se asigna Issue nuevo si:</p>
+
+<ul>
+  <li>Hay PR pendiente del ejecutor.</li>
+  <li>Hay PR con <code class="language-plaintext highlighter-rouge">audit/fail</code> no resuelto.</li>
+  <li>Hay incidente abierto (<code class="language-plaintext highlighter-rouge">main-broken</code>).</li>
+</ul>
+
+<p><strong>Selección del siguiente Issue (FIFO con filtros)</strong>: el asignador
+toma el Issue elegible más viejo, donde “elegible” significa:</p>
+
+<ul>
+  <li>Tiene label <code class="language-plaintext highlighter-rouge">jules-task</code> (estructurado por el flujo).</li>
+  <li>No tiene label <code class="language-plaintext highlighter-rouge">jules</code> (no asignado actualmente).</li>
+  <li>No tiene labels de exclusión (<code class="language-plaintext highlighter-rouge">blocked</code>, <code class="language-plaintext highlighter-rouge">needs-design</code>,
+<code class="language-plaintext highlighter-rouge">needs-triage</code>, <code class="language-plaintext highlighter-rouge">incident</code>, <code class="language-plaintext highlighter-rouge">main-broken</code>).</li>
+</ul>
+
+<p>Las labels de prioridad (<code class="language-plaintext highlighter-rouge">priority/p0..p3</code>) son <strong>decorativas</strong>. La
+priorización real está encodificada en el orden de creación de los
+Issues por el arquitecto.</p>
+
+<p><strong>Tras seleccionar</strong>: el orquestador llama a <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>
+con el número del Issue. El workflow prepara la rama y aplica el
+label <code class="language-plaintext highlighter-rouge">jules</code> como paso final atómico.</p>
+
+<p><strong>Entre repos</strong> (across portfolio): paralelismo automático. Cada repo
+tiene su propio orquestador y su propio <code class="language-plaintext highlighter-rouge">state.json</code>. J en proyecto A
+puede estar trabajando mientras J en proyecto B también lo está.</p>
+
+<h3 id="fase-8--revisión-de-épica-opcional">Fase 8 — Revisión de épica (opcional)</h3>
+
+<p><strong>Las épicas no se cierran.</strong> La revisión es opcional y la decide el
+arquitecto. Existen dos modos:</p>
+
+<p><strong>Modo 1: cierre rápido por confianza</strong> (default)</p>
+
+<p>El arquitecto observa que los Issues de un bloque o de la épica están
+completos, mira los PRs mergeados a <code class="language-plaintext highlighter-rouge">main</code>, y sigue con la siguiente
+sesión de diseño. Sin auditoría adicional. La mayoría de las épicas
+caben aquí.</p>
+
+<p><strong>Modo 2: revisión profunda con O (y opcionalmente D)</strong></p>
+
+<p>El arquitecto produce material para auditoría:</p>
+
+<ul>
+  <li>Para O: un <code class="language-plaintext highlighter-rouge">.zip</code> del repositorio (sin <code class="language-plaintext highlighter-rouge">.git</code>, preferiblemente sin
+<code class="language-plaintext highlighter-rouge">node_modules/</code>, <code class="language-plaintext highlighter-rouge">build/</code>, etc.).</li>
+  <li>Para D (opcional): un <code class="language-plaintext highlighter-rouge">.md</code> concatenado equivalente (un script del
+arquitecto recorre el repo y concatena los archivos de texto en un
+solo markdown bien identificado por ruta). D V4 Pro chat no acepta
+<code class="language-plaintext highlighter-rouge">.zip</code> pero sí acepta <code class="language-plaintext highlighter-rouge">.md</code> largos.</li>
+</ul>
+
+<p>Ambos usan <code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code> (el prompt está
+escrito para O pero D puede usarlo con la entrada alternativa).
+El arquitecto compara ambas auditorías si invoca a las dos. La
+comparación es manual; el arquitecto la hace sin apuros mientras J
+trabaja en otra épica (si no es bloqueante).</p>
+
+<p>Indicado para:</p>
+
+<ul>
+  <li>Primera épica del proyecto.</li>
+  <li>Épicas que tocaron arquitectura significativa.</li>
+  <li>Épicas con alta tasa de retrabajo observable.</li>
+  <li>Cualquier épica donde el arquitecto sospeche que conviene mirar dos
+veces.</li>
+</ul>
+
+<p><strong>Salida</strong>: el reporte se commitea como
+<code class="language-plaintext highlighter-rouge">docs/reviews/epic-NNN-review-YYYYMMDD.md</code>. Más de una revisión por
+épica es esperable a lo largo del tiempo.</p>
+
+<p><strong>Issues sugeridos por O/D</strong>: el arquitecto decide cuáles crea, en
+qué épica (la actual, una anterior, o una nueva), y cuándo.</p>
+
+<p><strong>Pausar a J entre épicas</strong>: si el arquitecto quiere revisar una
+épica con cuidado mientras J avanza, deja a J trabajando en la
+siguiente épica si las correcciones potenciales <strong>no son
+bloqueantes</strong>. Si lo son, pausa a J desde el sitio web del proveedor
+del ejecutor (no vía label de GitHub).</p>
+
+<hr />
+
+<h2 id="4-agentsmd-cómo-se-escribe">4. AGENTS.md: cómo se escribe</h2>
+
+<p>Es el prompt que todo agente lee. Su calidad determina la del
+ejecutor. Estructura prescrita:</p>
+
+<ol>
+  <li><strong>Propósito del repositorio</strong> en 2-3 frases.</li>
+  <li><strong>Stack y arquitectura</strong> de alto nivel.</li>
+  <li><strong>WARNING crítico de validación local</strong> con consecuencia explícita.</li>
+  <li><strong>Regla: el ejecutor nunca edita el Issue</strong> (la etiqueta de
+ejecutor nunca se retira).</li>
+  <li><strong>Regla: si no se provee una rama de trabajo, se debe crear una
+rama desde <code class="language-plaintext highlighter-rouge">main</code></strong> siguiendo la convención del título.</li>
+  <li><strong>Definition of Done</strong>: criterios verificables, no genéricos.</li>
+  <li><strong>Prohibiciones absolutas</strong>: concretas, no aspiracionales.</li>
+  <li><strong>Arquitectura por capas</strong> con referencia a sus enforcers
+mecánicos.</li>
+  <li><strong>Gestión de dependencias</strong>: gestor único, lock obligatorio.</li>
+  <li><strong>Commits y branching</strong>: Conventional Commits, todos los PRs a
+<code class="language-plaintext highlighter-rouge">main</code>, patrón de ramas de trabajo (<code class="language-plaintext highlighter-rouge">feat/</code>, <code class="language-plaintext highlighter-rouge">fix/</code>, <code class="language-plaintext highlighter-rouge">chore/</code>),
+regla <code class="language-plaintext highlighter-rouge">Closes #N</code>.</li>
+  <li><strong>Trabajo en rama precargada con scaffold de tests</strong>: sección
+breve sobre el modelo de tests rojos pre-cargados y la
+inmutabilidad del scaffold.</li>
+  <li><strong>Checklist pre-PR</strong>.</li>
+  <li><strong>Lectura obligatoria al empezar</strong>: otros AGENTS.md,
+<code class="language-plaintext highlighter-rouge">docs/orchestrator/README.md</code>, el Issue asignado, los tests
+pre-cargados de la rama.</li>
+</ol>
+
+<p><strong>Anti-patrones</strong>: reglas genéricas sin enforcer, contexto teórico
+innecesario, contradicciones entre AGENTS.md raíz y los de scope.</p>
+
+<p><strong>Nota práctica</strong>: el WARNING del template de Issue (formulario
+<code class="language-plaintext highlighter-rouge">agent_task.yml</code>) es <strong>el producto de la vida real</strong> donde J es
+olvidadizo, terco o desobediente. Repite reglas críticas que ya están
+en AGENTS.md, porque la disciplina opera en cada Issue concreto, no
+solo en la constitución. No es duplicación gratuita; es defensa en
+profundidad.</p>
+
+<hr />
+
+<h2 id="5-vulnerabilidades-y-mitigaciones">5. Vulnerabilidades y mitigaciones</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Vulnerabilidad</th>
+      <th>Mitigación</th>
+      <th>Referencia</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Build verde ilusorio</td>
+      <td>Tests pre-cargados como contrato + blob SHA per-archivo + CI limpio.</td>
+      <td>G4, <code class="language-plaintext highlighter-rouge">DS §9</code></td>
+    </tr>
+    <tr>
+      <td>Fallos en cascada</td>
+      <td>Bloques que O decide según capacidad + revisión de épica opcional.</td>
+      <td>C7, G8</td>
+    </tr>
+    <tr>
+      <td>Bucles infinitos de CI</td>
+      <td>Circuit breaker 10/2h + límite 3 reintentos por Issue.</td>
+      <td>G6</td>
+    </tr>
+    <tr>
+      <td>Auditor capturado</td>
+      <td>Tres familias distintas, dual audit manual en chat D+G en G1, G no audita PR.</td>
+      <td>P1</td>
+    </tr>
+    <tr>
+      <td>Drift docs vs código</td>
+      <td>Revisión de épica detecta drift acumulado.</td>
+      <td>G8</td>
+    </tr>
+    <tr>
+      <td>Drift <code class="language-plaintext highlighter-rouge">.md</code> ↔ script bash</td>
+      <td>D+G auditan ambos en chat manual. Fuente de verdad es el <code class="language-plaintext highlighter-rouge">.md</code>.</td>
+      <td>§3 Fase 3</td>
+    </tr>
+    <tr>
+      <td>Drift Issue body ↔ rama</td>
+      <td>El parser de <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> materializa byte-a-byte el body.</td>
+      <td><code class="language-plaintext highlighter-rouge">DS §9.1</code></td>
+    </tr>
+    <tr>
+      <td>NIAH en revisión de épica</td>
+      <td>El <code class="language-plaintext highlighter-rouge">.zip</code> o <code class="language-plaintext highlighter-rouge">.md</code> se prepara con exclusiones razonables.</td>
+      <td>G8</td>
+    </tr>
+    <tr>
+      <td>Auditor sobre-corregido</td>
+      <td>Prompt estructurado que separa hechos de críticas.</td>
+      <td>§3 Fase 3</td>
+    </tr>
+    <tr>
+      <td>Manipulación del entorno del ejecutor</td>
+      <td>Blob SHA del scaffold + diff contra rama base + CI limpio.</td>
+      <td>§2</td>
+    </tr>
+    <tr>
+      <td>Race conditions GHA</td>
+      <td><code class="language-plaintext highlighter-rouge">state.json</code> versionado per-repo, <code class="language-plaintext highlighter-rouge">sleep</code> antes de asignar siguiente.</td>
+      <td>§3 Fase 7</td>
+    </tr>
+    <tr>
+      <td>Tests adversariales débiles</td>
+      <td>Red-team integrado en sesión manual D+G + apelación del ejecutor (<code class="language-plaintext highlighter-rouge">suspect-contract</code>).</td>
+      <td>§3 Fases 3 y 5</td>
+    </tr>
+    <tr>
+      <td>Livelock de revisión documental</td>
+      <td>2-3 rondas según complejidad; tras eso, decisión del arquitecto.</td>
+      <td>§3 Fase 3</td>
+    </tr>
+    <tr>
+      <td>Ejecutor bloqueado</td>
+      <td>Máximo 3 reintentos, escalación automática.</td>
+      <td>§3 Fase 5</td>
+    </tr>
+    <tr>
+      <td>Ejecutor edita el Issue</td>
+      <td>Regla inviolable + workflow es el único que aplica label.</td>
+      <td>§3 Fase 4</td>
+    </tr>
+    <tr>
+      <td>Indisponibilidad del arquitecto</td>
+      <td>El portafolio sigue para los proyectos no bloqueados.</td>
+      <td>§1</td>
+    </tr>
+    <tr>
+      <td>Auditor pedante (falsos positivos)</td>
+      <td>Prompt explícito: aprobar razonable, no perfecto; dudas como comentarios.</td>
+      <td>§3 Fase 6</td>
+    </tr>
+    <tr>
+      <td>Test mal especificado por O</td>
+      <td>Auditoría D+G previa + apelación de J + dos vías de modificación legítima.</td>
+      <td><code class="language-plaintext highlighter-rouge">DS §9.5</code></td>
+    </tr>
+    <tr>
+      <td>Workflow falso éxito</td>
+      <td>La etiqueta <code class="language-plaintext highlighter-rouge">jules</code> es la última operación atómica; si algo falla antes, no se aplica.</td>
+      <td>§3 Fase 4</td>
+    </tr>
+    <tr>
+      <td>Tool del kit con bug</td>
+      <td>Toda herramienta del kit que decide destino de PR debe tener tests propios en CI.</td>
+      <td><code class="language-plaintext highlighter-rouge">SK §8.7</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="6-economía-y-telemetría">6. Economía y telemetría</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Concepto</th>
+      <th>Costo (mensual indicativo)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Claude Max 20x</td>
+      <td>$200</td>
+    </tr>
+    <tr>
+      <td>Google AI Pro (incluye Jules)</td>
+      <td>$20</td>
+    </tr>
+    <tr>
+      <td>DeepSeek API</td>
+      <td>$5-15 estimado</td>
+    </tr>
+    <tr>
+      <td><strong>Total máquina</strong></td>
+      <td><strong>~$225-235</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Los costos están en términos mensuales porque así los facturan los
+proveedores, no porque el flujo se mida así. La unidad operacional
+sigue siendo el Issue y la épica.</p>
+
+<p><strong>Optimizaciones activadas</strong>:</p>
+
+<ul>
+  <li>Cache de prefijos de D (90-98% descuento sobre system prompts +
+ADRs base).</li>
+  <li>D V4 Pro con 75% descuento hasta el 31 de mayo de 2026 (decisión
+pendiente sobre suscripción vs pay-per-token, basada en consumo
+medido durante calibración).</li>
+  <li>V4 Flash para auditoría de PR (volumen alto, sin thinking).</li>
+</ul>
+
+<p><strong>Telemetría operacional</strong>: comentario estructurado en cada PR
+(formato en §3 Fase 6). Buscable vía <code class="language-plaintext highlighter-rouge">gh</code>. Si en algún momento se
+quiere análisis agregado cross-proyecto, un script parsea los
+comentarios y produce CSV o markdown. <strong>No hay base de datos que
+mantener</strong>.</p>
+
+<p><strong>Revisión periódica</strong> (cuando el arquitecto lo decida en su
+rotación, sin cronograma): leer los comentarios <code class="language-plaintext highlighter-rouge">[telemetry]</code> de los
+últimos PRs cerrados. Si algo se sale del rango habitual, se calibra
+el prompt afectado.</p>
+
+<hr />
+
+<h2 id="7-starter-kit">7. Starter Kit</h2>
+
+<p>Especificación canónica: <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md</code>. Los kits
+específicos por plataforma (Python, Dart con Flutter) se producen
+después de validar el flujo en una segunda épica de un segundo
+proyecto.</p>
+
+<p>El kit completo se diseña <strong>desde el día 1 del primer proyecto</strong>.
+La automatización de cada componente sigue su propio rolling
+deployment (prototipo manual → workflows automatizados). Lo que sí
+evoluciona en operación es la calibración de los prompts; lo que no
+cambia es el conjunto de gates ni la estructura de workflows.</p>
+
+<hr />
+
+<h2 id="8-gates-de-calidad">8. Gates de calidad</h2>
+
+<p>Los ocho del <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md §7</code> (G1-G8). Todos activos
+desde el primer proyecto. Cambios en v1.6 respecto a v1.5:</p>
+
+<ul>
+  <li><strong>G4 (inmutabilidad de scaffold)</strong> cambió implementación: ahora
+blob SHA per-archivo verificado por
+<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code> en governance. Ver
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9</code>.</li>
+  <li><strong>G7 (salud de <code class="language-plaintext highlighter-rouge">main</code>)</strong>: el kit lo prescribe como obligatorio.
+Si el proyecto real lo tiene comentado, debe rehabilitarse.</li>
+  <li><strong>G8 (revisión de épica)</strong>: opcional, dos modos. Ahora explícito
+que D puede revisar también, en chat con <code class="language-plaintext highlighter-rouge">.md</code> concatenado.</li>
+</ul>
+
+<p>Si un gate genera fricción excesiva (típicamente G1 por
+discrepancias falsas de auditores), se calibra el prompt para
+aprobar más lo razonable y comentar menos lo subjetivo; no se
+desactiva el gate.</p>
+
+<p>Cualquier bypass se documenta en ADR.</p>
+
+<hr />
+
+<h2 id="9-operación-en-cartera">9. Operación en cartera</h2>
+
+<h3 id="91-distribución-de-atención">9.1 Distribución de atención</h3>
+
+<p>El sistema admite operación en cartera de varios proyectos. La
+cadencia exacta depende del ritmo del arquitecto y del estado de los
+proyectos; sin cronograma fijo.</p>
+
+<ul>
+  <li>Cuando un proyecto está bloqueado (espera de decisión, incidente,
+revisión humana), el portafolio avanza con los demás.</li>
+  <li>El humano rota entre proyectos según le convenga, no según
+calendario.</li>
+  <li>Costo por Issue (máquina): &lt;$3. Costo por Issue (tiempo humano):
+variable, distribuido en la rotación.</li>
+</ul>
+
+<h3 id="92-panel-de-control-github-project-kanban">9.2 Panel de control: GitHub Project Kanban</h3>
+
+<p>Un único GitHub Project a nivel de organización consolida los repos
+activos en una sola vista. Columnas:</p>
+
+<ul>
+  <li><strong>“Jules trabajando”</strong>: Issues con label <code class="language-plaintext highlighter-rouge">jules</code>. Se ignora; el
+ejecutor trabaja, el humano no interviene aquí.</li>
+  <li><strong>“Revisión automática”</strong>: PRs en CI o auditoría LLM. Se ignora;
+los workflows resuelven.</li>
+  <li><strong>“Requiere tu intervención”</strong>: PRs e Issues con label
+<code class="language-plaintext highlighter-rouge">requires-human-review</code>, <code class="language-plaintext highlighter-rouge">audit/fail</code> no resuelto,
+<code class="language-plaintext highlighter-rouge">suspect-contract</code>, o <code class="language-plaintext highlighter-rouge">blocked</code>. <strong>Esta es la columna donde el
+humano pasa la mayor parte de su tiempo activo.</strong></li>
+  <li><strong>“Revisión de épica pendiente”</strong>: épicas donde el arquitecto ha
+decidido invocar el modo 2 de revisión (con O y opcionalmente D).</li>
+</ul>
+
+<p>Cuando el humano se sienta a operar, abre el Kanban, no varios repos.
+Lee el resumen que dejó el auditor en cada PR de la columna de
+intervención, decide, comenta, sigue.</p>
+
+<h3 id="93-calibración-cross-proyecto">9.3 Calibración cross-proyecto</h3>
+
+<p>Los aprendizajes de un proyecto alimentan el kit base. Si en proyecto
+A se descubre que el auditor tiene tasa alta de falsos positivos en
+cierto tipo de PR, el ajuste del prompt se propaga al kit base, y los
+proyectos B-F se benefician en la próxima sesión. La cartera es un
+banco de pruebas distribuido.</p>
+
+<hr />
+
+<h2 id="10-decisiones-tomadas">10. Decisiones tomadas</h2>
+
+<p>Lista consolidada de las decisiones de la arquitectura. Para
+contexto histórico, ver §0 de este documento y los <code class="language-plaintext highlighter-rouge">§0</code> de los
+documentos hermanos.</p>
+
+<ul>
+  <li><strong>Tres familias de LLMs</strong>: Anthropic (O), Google (G + J), DeepSeek
+(D).</li>
+  <li><strong>Roles asignados</strong> según §2.</li>
+  <li><strong>G no audita PR.</strong> Punto. Solo D vía API.</li>
+  <li><strong>Auditoría dual de documentación inicial</strong>: manual en chat con
+D+G (incluye red-team de tests). No es workflow automatizado.</li>
+  <li><strong>Auditoría de PRs</strong>: D V4 Flash vía API en <code class="language-plaintext highlighter-rouge">audit-pr.yml</code>.</li>
+  <li><strong>Revisión de épica</strong>: opcional, dos modos. O obligatorio cuando
+se invoca modo 2; D opcional con <code class="language-plaintext highlighter-rouge">.md</code> concatenado.</li>
+  <li><strong>Tests rojos pre-cargados</strong> como modelo de inmutabilidad, con
+blob SHA per-archivo verificado por
+<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>.</li>
+  <li><strong>N2 como par <code class="language-plaintext highlighter-rouge">.md</code> + script bash</strong>, ambos versionados, fuente de
+verdad es el <code class="language-plaintext highlighter-rouge">.md</code>.</li>
+  <li><strong>Tamaño del bloque lo decide O</strong> según capacidad por sesión.</li>
+  <li><strong>Todos los PRs a <code class="language-plaintext highlighter-rouge">main</code></strong> con squash-merge. Sin ramas <code class="language-plaintext highlighter-rouge">epic/N</code>.</li>
+  <li><strong>Asignador FIFO</strong> con filtros mínimos (<code class="language-plaintext highlighter-rouge">jules-task</code> requerido,
+exclusiones). Labels de prioridad decorativas.</li>
+  <li><strong>Estado de concurrencia per-repo en <code class="language-plaintext highlighter-rouge">state.json</code></strong>; paralelismo
+cross-repo automático.</li>
+  <li><strong>Telemetría como comentario estructurado en PR</strong>, no BD.</li>
+  <li><strong>Panel de control Kanban a nivel de organización</strong>.</li>
+  <li><strong>Operación en cartera</strong> como modo nominal cuando varios proyectos
+estén activos.</li>
+  <li><strong>Sin cronograma</strong>: la cadencia es la del arquitecto humano.</li>
+  <li><strong>Starter Kit completo diseñado desde el día 1</strong>, con rolling
+deployment de automatizaciones.</li>
+  <li><strong>Mentalidad del auditor</strong>: aprobar razonable, comentar dudas, no
+bloquear por pedantería.</li>
+  <li><strong>Frontera Diseño/Ejecución explícita</strong>: Diseño es chat manual,
+Ejecución es GHA automatizado.</li>
+  <li><strong>Gate <code class="language-plaintext highlighter-rouge">architect-approved</code> manual</strong> para documentación inicial.</li>
+  <li><strong>Label <code class="language-plaintext highlighter-rouge">requires-human-review</code></strong> (no <code class="language-plaintext highlighter-rouge">requires-architect-review</code>)
+para bloqueo humano.</li>
+  <li><strong>El ejecutor nunca edita el Issue.</strong> La etiqueta del ejecutor
+nunca se retira.</li>
+  <li><strong>JULES_PAT como firma del jefe</strong>: marca de procedencia, no solo
+permisos elevados.</li>
+  <li><strong>Tests sobre las herramientas del kit como regla</strong>, no
+recomendación.</li>
+  <li><strong>Rol opcional de QA humano</strong> (“Usuario bruto”) reservado para
+cuando se incorpore.</li>
+  <li><strong>El starter_kit base es <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md</code></strong> y los kits
+específicos por plataforma se producen tras la primera épica
+exitosa de un segundo proyecto.</li>
+</ul>
+
+<hr />
+
+<h2 id="11-acciones-manuales-del-arquitecto">11. Acciones manuales del arquitecto</h2>
+
+<p>El v1.6 reconoce explícitamente las acciones que hoy son humanas, no
+automatizables, y las documenta como parte legítima del flujo (no
+como deuda). Algunas serán automatizables en el futuro (ej: API de
+Jules para pausar al ejecutor); las que no lo sean permanecerán
+manuales por diseño.</p>
+
+<ul>
+  <li><strong>Producir N1 con O</strong> en chat.</li>
+  <li><strong>Producir N2 por bloque con O</strong> (par <code class="language-plaintext highlighter-rouge">.md</code> + script bash), con
+tests pre-cargados en cada Issue.</li>
+  <li><strong>Auditar el par N2 con D y G</strong> en chat usando
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>.</li>
+  <li><strong>Iterar 2-3 rondas</strong> sobre el par hasta que esté defendible.</li>
+  <li><strong>Aplicar <code class="language-plaintext highlighter-rouge">architect-approved</code></strong> a mano al par N2 aprobado.</li>
+  <li><strong>Push manual</strong> del par N2 (y ADRs) a <code class="language-plaintext highlighter-rouge">main</code>.</li>
+  <li><strong>Ejecutar el script bash</strong> de creación de Issues hijos del bloque.</li>
+  <li><strong>(Caso raro) Asignar el Issue a J manualmente</strong> mediante
+<code class="language-plaintext highlighter-rouge">workflow_dispatch</code> de <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> cuando se quiere
+saltar el flujo FIFO automático.</li>
+  <li><strong>Pausar a J</strong> vía botón en el sitio web del proveedor (no vía
+label).</li>
+  <li><strong>Crear el <code class="language-plaintext highlighter-rouge">.zip</code></strong> (para O) o el <code class="language-plaintext highlighter-rouge">.md</code> concatenado (para D) para
+revisión de épica.</li>
+  <li><strong>Comparar las dos auditorías</strong> (O y D) cuando se invoca a ambas.</li>
+  <li><strong>Decidir qué Issues sugeridos</strong> se crean, en qué épica.</li>
+  <li><strong>Añadir Issues de corrección</strong> a épicas anteriores cuando aplique
+(las épicas no se cierran).</li>
+  <li><strong>Corregir scaffold mal especificado</strong> vía una de las dos vías
+legítimas (<code class="language-plaintext highlighter-rouge">DS §9.5</code>): PR del arquitecto modificando el scaffold,
+o cerrar el Issue y crear uno nuevo.</li>
+  <li><strong>Crear, ejecutar, fusionar Issues a mano</strong> en casos raros (Issue
+legacy, decisión puntual del arquitecto). En estos casos el flujo
+automatizado no aplica; el arquitecto opera como ejecutor humano.</li>
+</ul>
+
+<hr />
+
+<h2 id="12-próximos-pasos">12. Próximos pasos</h2>
+
+<p>(Sin cronograma estricto; los pasos están en orden lógico de
+prerequisitos, no calendarizados.)</p>
+
+<ol>
+  <li><strong>Migración del primer proyecto a v1.6.</strong> El proyecto real (en
+Épica 4) opera con un subconjunto del kit. Migrar lo accionable:
+adoptar <code class="language-plaintext highlighter-rouge">requires-human-review</code> como nombre canónico, ajustar
+labels eliminadas, verificar que los workflows del paquete de
+tests pre-cargados están integrados, rehabilitar health-check de
+<code class="language-plaintext highlighter-rouge">main</code>, agregar tests al <code class="language-plaintext highlighter-rouge">tools/changelog.py</code> y al
+<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>.</li>
+  <li><strong>Decisión DeepSeek pre-31-mayo</strong>. Decidir suscripción V4 Pro con
+75% descuento vs pay-per-token, basado en consumo medido durante
+calibración.</li>
+  <li><strong>Primera revisión de épica con O</strong>. Cuando el primer proyecto
+complete una épica significativa, ejercitar el modo 2 con O y
+opcionalmente D. Validar el formato del <code class="language-plaintext highlighter-rouge">.md</code> concatenado que
+produce el script del arquitecto para D.</li>
+  <li><strong>Kanban consolidado</strong>. Si todavía no está, crear el GitHub
+Project a nivel de organización con las cuatro columnas del §9.2.
+Configurar reglas automáticas que muevan Issues y PRs entre
+columnas según labels.</li>
+  <li><strong>Workflow propio para auditor de PR</strong>. Si el primer proyecto
+sigue usando <code class="language-plaintext highlighter-rouge">hustcer/deepseek-review</code>, reemplazar por workflow
+propio sin dependencia de tercero.</li>
+  <li><strong>Segundo proyecto al portafolio</strong>. Cuando el arquitecto sienta
+que el primer proyecto está estable, añadir el segundo. Validar
+que la operación cross-proyecto funciona desde el Kanban.</li>
+  <li><strong>Más proyectos según aparezcan</strong>. Sin cuota fija. Conforme entren
+más, aplicar al kit los aprendizajes acumulados. Generar los kits
+específicos por plataforma (Python, Dart/Flutter) cuando un
+segundo proyecto en ese stack lo justifique.</li>
+</ol>
+
+<hr />
+
+<h2 id="13-resumen-ejecutivo">13. Resumen ejecutivo</h2>
+
+<p>Tres familias, roles distintos, cartera de proyectos sin cronograma.
+O diseña en chat. D+G auditan documentación inicial en chat. J
+ejecuta en su VM. D V4 Flash audita PRs vía API. O (y opcionalmente
+D) revisa épicas cuando el arquitecto lo invoque. El humano abre un
+Kanban consolidado, no varios repos.</p>
+
+<p>El v1.6 mantiene el espíritu de v1.5 e integra los aprendizajes del
+primer proyecto real en operación + el modelo de tests rojos
+pre-cargados validado:</p>
+
+<ul>
+  <li><strong>Los tests son contrato ejecutable pre-cargado en el body del
+Issue</strong>. El workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> los materializa
+como primer commit de la rama; <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>
+verifica blob SHA per-archivo en cada PR.</li>
+  <li><strong>El N2 es un par</strong>: <code class="language-plaintext highlighter-rouge">.md</code> (fuente de verdad) + script bash
+(consecuencia). D+G auditan ambos.</li>
+  <li><strong>El tamaño del bloque lo decide O</strong> según capacidad por sesión.</li>
+  <li><strong>El ejecutor nunca edita el Issue</strong>, la etiqueta del ejecutor
+nunca se retira, la última operación es la señal.</li>
+  <li><strong>G no audita PR</strong>; solo D vía API.</li>
+  <li><strong>El PAT del arquitecto es firma del jefe</strong>, no solo permisos.</li>
+  <li><strong>Mensajes-instrucción al agente embebidos en errores de CI</strong>,
+helpers de CI con fallback inline, <code class="language-plaintext highlighter-rouge">skip_validators</code> en el
+orquestador, concurrencia diferenciada, y demás patrones
+rescatados del proyecto real.</li>
+</ul>
+
+<p>Equipo bueno, no perfecto. La IA se equivoca; el humano también. El
+sistema acomoda eso por construcción: railes que detectan los
+errores graves, comentarios que documentan las dudas, y la revisión
+de épica cuando el arquitecto sospeche que conviene mirar dos veces.
+Los errores restantes se corrigen en la siguiente iteración. Eso es
+suficiente.</p>
+
+<p>Costo: ~$225/mes en máquina + tiempo del arquitecto distribuido al
+ritmo que prefiera. Sin presión calendárica.</p>
+
+<p>Siguiente paso operacional: <strong>migrar el primer proyecto a v1.6</strong>.
+Operar desde el día 1 con kit completo en diseño, automatizando los
+componentes en rolling. La fábrica se construye operándola.</p>

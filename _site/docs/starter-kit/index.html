@@ -1,0 +1,1677 @@
+<h1 id="general-starter-kit--v12">General Starter Kit — v1.2</h1>
+
+<blockquote>
+  <p>Especificación canónica, agnóstica de plataforma, del starter_kit que
+sirve de cimiento a todos los starter_kits específicos por stack
+(Python, Dart con Flutter, Node, Go, Rust, mixtos). Define qué debe
+incluir un kit, por qué, y los gates de calidad que no son
+negociables.</p>
+
+  <p><strong>Versión:</strong> 1.2 · <strong>Fecha:</strong> 18 de mayo de 2026
+<strong>Reemplaza:</strong> v1.1
+<strong>Estado:</strong> vivo. Las versiones específicas por plataforma derivan de
+este documento y no pueden contradecirlo; pueden extenderlo.</p>
+</blockquote>
+
+<hr />
+
+<h2 id="0-cambios-desde-v11">0. Cambios desde v1.1</h2>
+
+<p>Esta versión integra dos fuentes de aprendizaje: (a) los patrones
+observados en operación real del primer proyecto del enjambre,
+identificados por análisis comparativo entre el kit canónico y la
+implementación real; (b) el diseño de <strong>tests rojos pre-cargados</strong>
+validado en operación y que reemplaza el modelo anterior de
+inmutabilidad por hash determinístico per-épica.</p>
+
+<h3 id="cambios-estructurales">Cambios estructurales</h3>
+
+<ol>
+  <li><strong>Tests rojos pre-cargados.</strong> El modelo de <code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code>
+    <ul>
+      <li>manifiesto de hashes per-épica del v1.1 se reemplaza por:</li>
+      <li>Sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code> en el body del Issue
+(fuente de verdad).</li>
+      <li>Workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> que parsea el body y
+materializa los tests como primer commit de la rama.</li>
+      <li>Check <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code> que verifica blob SHA
+per-archivo del commit scaffold contra HEAD del PR.</li>
+      <li>Auto-desactivación del check cuando el primer commit no es
+scaffold (Issues sin tests, ramas legacy).</li>
+    </ul>
+  </li>
+  <li>
+    <p><strong>G no audita PR.</strong> Clarificación de roles: G (Gemini) actúa como
+ejecutor (Jules) y como co-auditor de documentación en chat con D.
+<strong>No audita PR</strong>. La auditoría de PR la hace exclusivamente D vía
+API en <code class="language-plaintext highlighter-rouge">audit-pr.yml</code>.</p>
+  </li>
+  <li>
+    <p><strong>Label <code class="language-plaintext highlighter-rouge">requires-architect-review</code> se renombra a
+<code class="language-plaintext highlighter-rouge">requires-human-review</code>.</strong> Para alinearse con la operación real.
+La label <code class="language-plaintext highlighter-rouge">architect-approved</code> (aplicada manualmente por el
+arquitecto sobre N1/N2) se mantiene.</p>
+  </li>
+  <li>
+    <p><strong>N2 como par <code class="language-plaintext highlighter-rouge">.md</code> + script bash.</strong> El N2 de un bloque es un
+documento markdown legible (fuente de verdad) <strong>acompañado</strong> por un
+script bash que sube los Issues a GitHub. D+G auditan ambos.</p>
+  </li>
+  <li>
+    <p><strong>Patrón “la última operación es la señal”.</strong> La etiqueta <code class="language-plaintext highlighter-rouge">jules</code>
+(o equivalente del ejecutor) se aplica como paso final atómico tras
+verificar éxito completo del workflow de preparación. Si algo falla
+antes, la señal no se emite y el sistema queda en estado limpio.</p>
+  </li>
+  <li><strong>Regla: el ejecutor nunca edita el Issue.</strong> La etiqueta <code class="language-plaintext highlighter-rouge">jules</code>
+nunca se retira. La única “edición” del Issue por la máquina es la
+aplicación inicial automática de la etiqueta. Toda otra
+modificación del Issue la hace el arquitecto humano.</li>
+</ol>
+
+<h3 id="patrones-operacionales-rescatados-del-proyecto-real">Patrones operacionales rescatados del proyecto real</h3>
+
+<ol>
+  <li>
+    <p><strong>Mensajes-instrucción embebidos al agente</strong> en errores de CI:
+cuando el CI detecta un error recuperable sin commit (título de PR
+mal formado, label faltante, body sin <code class="language-plaintext highlighter-rouge">Closes #N</code>), el error debe
+devolver la receta exacta de recuperación al agente.</p>
+  </li>
+  <li>
+    <p><strong>Auto-aplicación de <code class="language-plaintext highlighter-rouge">requires-human-review</code> por complejidad
+declarada.</strong> El formulario de Issue tiene dropdown de complejidad
+estimada; “large” dispara <code class="language-plaintext highlighter-rouge">requires-human-review</code> automático.</p>
+  </li>
+  <li>
+    <p><strong>Lista exhaustiva de <code class="language-plaintext highlighter-rouge">PROTECTED_PATTERNS</code></strong> multi-stack como
+apéndice (ver Apéndice A).</p>
+  </li>
+  <li>
+    <p><strong>“Nunca re-aplicar <code class="language-plaintext highlighter-rouge">auto-merge</code> en sync”.</strong> Si un humano removió
+la label intencionalmente, no se la pongas otra vez en el siguiente
+push.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">skip_validators</code> como input del orquestador</strong> en runs manuales,
+para saltar validadores nombrados durante diagnóstico.</p>
+  </li>
+  <li>
+    <p><strong>Concurrencia diferenciada</strong>: el orquestador cancela superseded
+runs del mismo PR; el auto-merge <strong>nunca</strong> cancela in-flight.</p>
+  </li>
+  <li>
+    <p><strong>Flags <code class="language-plaintext highlighter-rouge">--only=&lt;scope&gt;</code> y <code class="language-plaintext highlighter-rouge">--continue</code></strong> en scripts CI para
+monorepos heterogéneos y diagnóstico.</p>
+  </li>
+  <li>
+    <p><strong>Helper functions inline con fallback</strong> a <code class="language-plaintext highlighter-rouge">lib/_common.sh</code> en
+scripts CI, para que cada script ejecute aislado.</p>
+  </li>
+  <li>
+    <p><strong>Bootstrap y codegen como pasos explícitos del CI</strong> cuando el
+stack tiene código generado.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">sleep</code> antes de buscar siguiente Issue</strong> tras un merge
+(eventual consistency de GitHub).</p>
+  </li>
+  <li>
+    <p><strong>Token PAT del arquitecto como “marca de procedencia”.</strong> El
+secret <code class="language-plaintext highlighter-rouge">JULES_PAT</code> (nombre genérico: <code class="language-plaintext highlighter-rouge">OPERATOR_PAT</code> o equivalente
+según el proyecto) no es solo permisos elevados; es una firma:
+cuando un workflow opera con este PAT, el ejecutor reconoce que la
+acción viene del jefe y obedece. Si operara con <code class="language-plaintext highlighter-rouge">GITHUB_TOKEN</code>,
+podría desconfiar.</p>
+  </li>
+  <li>
+    <p><strong>Fallback en cascada para detectar Issue cerrado</strong> por un PR:
+primero parse de <code class="language-plaintext highlighter-rouge">Closes/Fixes/Resolves #N</code>, luego último Issue
+con label de ejecutor cerrado recientemente.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">project_manifest.json</code></strong> como artefacto canónico con IDs de
+GitHub Project y de sus campos. Script generador idempotente para
+producirlo.</p>
+  </li>
+  <li>
+    <p><strong>Script <code class="language-plaintext highlighter-rouge">branch_protections_rules.sh</code></strong> para configurar branch
+protection declarativamente vía <code class="language-plaintext highlighter-rouge">gh api</code>.</p>
+  </li>
+  <li>
+    <p><strong>Un script de creación de Issues por bloque</strong> (no un script
+monolítico con flag); cada bloque es replayable idempotente.</p>
+  </li>
+  <li>
+    <p><strong>DoD como checkboxes editables</strong> en el formulario del Issue;
+convierte el DoD en máquina de estado visible en GitHub UI.</p>
+  </li>
+  <li>
+    <p><strong>Campo “Rutas afectadas”</strong> y <strong>“Comandos extra de validación”</strong> en
+el formulario del Issue.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">Issue link required</code> como gate de governance</strong>, con instrucción
+al agente embebida en el error.</p>
+  </li>
+  <li>
+    <p><strong>CHANGELOG validation como gate</strong>, con exempción automática para
+PRs puramente de docs/scripts (detección por extensión).</p>
+  </li>
+  <li>
+    <p><strong>Tests sobre las herramientas de governance del propio kit.</strong>
+Toda herramienta del kit que decida el destino de un PR
+(validador de CHANGELOG, check de inmutabilidad, futuros
+validadores) debe tener su propia suite de tests que corra en CI.</p>
+  </li>
+</ol>
+
+<h3 id="cambios-de-redacción-y-eliminaciones">Cambios de redacción y eliminaciones</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">requires-architect-review</code> → <code class="language-plaintext highlighter-rouge">requires-human-review</code></strong> en todo el
+documento.</li>
+  <li><strong>§9 directorios canónicos</strong>: <code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/</code>
+eliminado. <code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code> eliminado como prescripción
+rígida.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">auditor-prompts/</code></strong>: lista actualizada (solo
+<code class="language-plaintext highlighter-rouge">pr-auditor-system.md</code>; los prompts manuales viven fuera).</li>
+  <li><strong>PR size budget default</strong>: subido de 400 a 2000 líneas con nota
+explicativa sobre stacks con codegen.</li>
+</ul>
+
+<p><strong>Nota sobre versionado</strong>: estrictamente, varios de estos cambios
+calificarían como breaking (renombrar label, eliminar directorios
+canónicos, cambiar modelo de inmutabilidad). Se mantiene en v1.2 (no
+v2.0) porque no existen aún kits derivados completos que el bump pueda
+romper, y porque los proyectos en operación migran fácil
+(<code class="language-plaintext highlighter-rouge">requires-architect-review → requires-human-review</code> es buscar y
+reemplazar; el modelo de tests pre-cargados convive con el viejo
+durante la transición). Si emerge un segundo kit derivado a partir de
+aquí, el próximo cambio estructural sí ameritará major bump.</p>
+
+<hr />
+
+<h2 id="1-propósito-de-este-documento">1. Propósito de este documento</h2>
+
+<p>Este documento es el <strong>contrato base</strong> que toda implementación de
+starter_kit debe honrar, sin importar el lenguaje o framework objetivo.
+Su propósito es triple:</p>
+
+<ol>
+  <li><strong>Aislar las decisiones estructurales de las decisiones de stack.</strong>
+Las decisiones que aquí se definen valen igual para Python que para
+Dart o para cualquier combinación. Cuando se deriva un kit
+específico, solo se especializa la capa más superficial (comandos
+concretos, manifiestos, herramientas de lint). El resto se hereda.</li>
+  <li><strong>Servir de referencia única para auditorías arquitectónicas.</strong>
+Cuando se audita un proyecto, se verifica conformidad contra este
+documento, no contra los kits derivados. Los kits derivados solo
+añaden requisitos, nunca relajan los de aquí.</li>
+  <li><strong>Documentar el “por qué” detrás de cada decisión.</strong> Las reglas sin
+justificación se erosionan. Cada regla aquí tiene fundamento, y el
+fundamento es lo que justifica mantenerla cuando el equipo (o el
+propio arquitecto solopreneur) tenga la tentación de hacer
+excepciones.</li>
+</ol>
+
+<p>Lo que este documento <strong>no es</strong>: una implementación. No contiene
+código, no incluye archivos ejecutables, no prescribe herramientas
+específicas. Las herramientas son elecciones del kit por plataforma.</p>
+
+<hr />
+
+<h2 id="2-definición-de-starter_kit">2. Definición de starter_kit</h2>
+
+<p>Un <strong>starter_kit</strong> es el conjunto mínimo de archivos, convenciones,
+workflows y gates que se aplica el día 1 de un repositorio nuevo para
+que el desarrollo asistido por un enjambre de LLMs sea defendible y
+auditable de extremo a extremo.</p>
+
+<p>Un starter_kit no es:</p>
+
+<ul>
+  <li>Una plantilla de proyecto (esas resuelven “cómo arranco el código”).</li>
+  <li>Un boilerplate de framework (esos resuelven “qué stack uso”).</li>
+  <li>Un conjunto de buenas prácticas opcionales (esas no se hacen
+cumplir).</li>
+</ul>
+
+<p>Un starter_kit <strong>sí</strong> es:</p>
+
+<ul>
+  <li>Una infraestructura de control que materializa físicamente las
+decisiones arquitectónicas mediante CI/CD, labels, hooks y
+validadores.</li>
+  <li>Un contrato entre el arquitecto humano, los agentes LLM ejecutores y
+los agentes LLM auditores.</li>
+  <li>Una membrana de seguridad: lo que pasa los gates es defendible; lo
+que no pasa, no entra a <code class="language-plaintext highlighter-rouge">main</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="3-principios-rectores">3. Principios rectores</h2>
+
+<p>Toda decisión incluida en este documento se justifica contra uno o
+varios de estos diez principios. Una regla que no remita a ninguno
+está fuera de lugar y debe revisarse.</p>
+
+<p><strong>P1. Segregación de funciones entre familias LLM.</strong> Ningún modelo
+diseña, ejecuta y audita el mismo artefacto. El diseñador, el ejecutor
+y el auditor pertenecen siempre a familias distintas para un mismo
+artefacto. Una misma familia puede ocupar roles distintos sobre
+artefactos distintos.</p>
+
+<p><strong>P2. El script local es el contrato; CI lo invoca.</strong> La validación
+remota nunca diverge de la validación local porque ejecuta exactamente
+el mismo script. Esto se cumple por construcción, no por documentación.</p>
+
+<p><strong>P3. Compuerta única hacia <code class="language-plaintext highlighter-rouge">main</code>.</strong> Branch protection apunta a un
+solo nombre de check estable. Los validadores convergen en ese gate.
+Esto desacopla “qué validadores existen” de “qué se exige para
+fusionar”.</p>
+
+<p><strong>P4. Composición sobre configuración.</strong> Las decisiones del orquestador
+se expresan en labels componibles, no en motores de reglas custom.
+Dos labels (<code class="language-plaintext highlighter-rouge">auto-merge</code> y <code class="language-plaintext highlighter-rouge">requires-human-review</code>) bastan para
+expresar la política de fusión.</p>
+
+<p><strong>P5. Radio de daño acotado.</strong> Cualquier mecanismo automatizado tiene
+límites explícitos (frecuencia, tamaño, scope). Cuando los excede, se
+detiene y reclama intervención humana, no continúa “esperando lo
+mejor”.</p>
+
+<p><strong>P6. Self-healing por defecto, no por excepción.</strong> Cuando <code class="language-plaintext highlighter-rouge">main</code> se
+rompe, el sistema pausa al agente automáticamente. El humano no tiene
+que recordar pausarlo.</p>
+
+<p><strong>P7. Path-based protection sobre confianza implícita.</strong> Las zonas
+sensibles (CI, manifiestos, migraciones, infraestructura, contratos
+arquitectónicos) se protegen mecánicamente por path, no se espera que
+el agente o el humano recuerden tener cuidado allí.</p>
+
+<p><strong>P8. Inmutabilidad de los contratos por el ejecutor.</strong> Los tests
+pre-cargados (scaffold) y los ADRs los escribe el arquitecto (o el
+diseñador LLM bajo supervisión); el ejecutor no puede modificarlos.
+Esto se hace cumplir por guards mecánicos (blob SHA per-archivo
+contra el commit scaffold), no por convención.</p>
+
+<p><strong>P9. Telemetría como prerequisito de mejora.</strong> Lo que no se mide, no
+se mejora. Cada Issue procesado genera datos: iteraciones, tokens
+consumidos, tiempo de ciclo, falsos positivos del auditor. Sin esto,
+no hay forma de detectar la patología.</p>
+
+<p><strong>P10. La auditoría LLM no anula la auditoría humana.</strong> Los gates
+automáticos pasan o fallan; los gates humanos se reservan para
+decisiones donde el costo de equivocarse es asimétrico (revisión de
+épica, arquitectura, contratos públicos, modificación del scaffold).</p>
+
+<hr />
+
+<h2 id="4-componentes-del-kit">4. Componentes del kit</h2>
+
+<p>Todo starter_kit debe proveer, organizadas en seis capas, las
+siguientes categorías de artefactos. La granularidad concreta y el
+formato lo define cada kit específico; las categorías son inviolables.</p>
+
+<h3 id="41-capa-de-orquestación">4.1 Capa de orquestación</h3>
+
+<p>Workflows reusables que coordinan el ciclo de vida de un PR desde
+apertura hasta merge (o rechazo). Componen:</p>
+
+<ul>
+  <li><strong>Punto de entrada único</strong> disparado por eventos de PR y push a
+<code class="language-plaintext highlighter-rouge">main</code>. Acepta <code class="language-plaintext highlighter-rouge">workflow_dispatch</code> con input <code class="language-plaintext highlighter-rouge">skip_validators</code>
+(CSV) para saltar validadores nombrados en runs manuales.</li>
+  <li><strong>Validadores enchufables en paralelo</strong> (CI funcional, governance,
+auditoría LLM, otros).</li>
+  <li><strong>Gate de convergencia único</strong> que todos los validadores alimentan.</li>
+  <li><strong>Mecanismo de auto-merge</strong> condicionado a labels y al gate.</li>
+  <li><strong>Concurrencia diferenciada</strong>: el orquestador cancela superseded
+runs del mismo PR (<code class="language-plaintext highlighter-rouge">cancel-in-progress: true</code>); el auto-merge
+<strong>nunca</strong> cancela in-flight (<code class="language-plaintext highlighter-rouge">cancel-in-progress: false</code>).</li>
+  <li><strong>Preparación de rama para el siguiente Issue</strong> que respeta
+exclusiones y salud de <code class="language-plaintext highlighter-rouge">main</code>. La etiqueta del ejecutor se aplica
+como <strong>paso final atómico</strong> tras éxito de la preparación (incluida
+la materialización del scaffold de tests pre-cargados, si aplica).
+Toma siempre el Issue elegible más viejo con label de tarea
+estructurada y sin label de ejecutor; FIFO con <code class="language-plaintext highlighter-rouge">sleep</code> previo para
+acomodar eventual consistency de GitHub.</li>
+  <li><strong>Auto-apertura de incidente</strong> cuando <code class="language-plaintext highlighter-rouge">main</code> se rompe, con pausa
+automática del agente hasta resolución manual.</li>
+</ul>
+
+<h3 id="42-capa-de-validación">4.2 Capa de validación</h3>
+
+<p>Scripts ejecutables que materializan el contrato de calidad,
+invocables tanto local como remotamente. Mínimo:</p>
+
+<ul>
+  <li><strong>Script ligero</strong> (~30 segundos) para validación pre-commit:
+formato, lint, tipos.</li>
+  <li><strong>Script completo</strong> (sin tope de tiempo razonable) que ejecuta la
+suite completa: el ligero + tests + cobertura + auditorías de
+seguridad + build de documentación + cualquier extra del proyecto.</li>
+  <li><strong>Flags canónicos <code class="language-plaintext highlighter-rouge">--only=&lt;scope&gt;</code> y <code class="language-plaintext highlighter-rouge">--continue</code></strong> en ambos
+scripts:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">--only=&lt;scope&gt;</code>: limita la ejecución a un subconjunto del
+monorepo (útil para stacks heterogéneos).</li>
+      <li><code class="language-plaintext highlighter-rouge">--continue</code>: acumula fallos sin cortar, para diagnóstico.</li>
+    </ul>
+  </li>
+  <li><strong>Helper functions</strong> (<code class="language-plaintext highlighter-rouge">ci_log</code>, <code class="language-plaintext highlighter-rouge">ci_step</code>, <code class="language-plaintext highlighter-rouge">ci_summary</code>, <code class="language-plaintext highlighter-rouge">ci_fail</code>)
+cargadas desde <code class="language-plaintext highlighter-rouge">lib/_common.sh</code> con <strong>fallback inline</strong>: si la lib
+común no se encuentra (script ejecutado aislado o copia-pega), el
+script define versiones locales y sigue funcionando.</li>
+  <li><strong>Bootstrap y codegen como pasos explícitos</strong> cuando el stack tiene
+código generado: el script completo ejecuta primero el bootstrap y
+el codegen (sobre checkout limpio) y luego el resto. <strong>No asumir
+que el código generado está commiteado.</strong></li>
+  <li><strong>Hooks Git</strong> que invocan el script ligero en pre-commit y el script
+completo en pre-push.</li>
+  <li><strong>Hooks de extensión por proyecto</strong> para añadir validaciones
+específicas sin modificar el kit base.</li>
+</ul>
+
+<h3 id="43-capa-de-convención">4.3 Capa de convención</h3>
+
+<p>Documentos y configuraciones que codifican las reglas inviolables del
+repositorio en un formato que tanto humanos como agentes leen:</p>
+
+<ul>
+  <li><strong>AGENTS.md raíz</strong> con las reglas para todo agente que escriba
+código en el repositorio.</li>
+  <li><strong>AGENTS.md por scope</strong> (sub-monorepos, paquetes, módulos) cuando el
+proyecto tiene divisiones internas con reglas propias.</li>
+  <li><strong>CONTRIBUTING.md</strong> dirigido a humanos.</li>
+  <li><strong>CHANGELOG.md</strong> mantenido bajo “Keep a Changelog” + SemVer (o
+variante explícitamente justificada).</li>
+  <li><strong>Configuración de hooks de commit</strong> que rechaza commits que no
+sigan Conventional Commits.</li>
+  <li><strong>Scopes Conventional Commits enumerados explícitamente</strong> en el
+AGENTS.md (por feature, por paquete) para que el ejecutor no
+invente scopes.</li>
+</ul>
+
+<h3 id="44-capa-de-documentación-viva">4.4 Capa de documentación viva</h3>
+
+<p>Cuatro directorios con propósito y reglas de actualización claras:</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/backlog/</code></strong>: N1 (épicas) y N2 (bloques de Issues por épica)
+generados por el arquitecto LLM, auditados manualmente por el
+arquitecto humano con D+G en chat antes de subirse al repo por push
+manual. El N2 vive como <strong>par</strong> (<code class="language-plaintext highlighter-rouge">.md</code> + script bash); ambos se
+commitean al repo. La fuente de verdad es el <code class="language-plaintext highlighter-rouge">.md</code>; el script es
+consecuencia.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/adr/</code></strong>: Architecture Decision Records, versionados, con
+formato estándar (variante de Nygard u otro explícitamente
+justificado). Su actualización es obligatoria para PRs que tocan
+superficie arquitectónica.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/orchestrator/</code></strong>: documentación del propio kit dentro del
+proyecto, para que cualquier humano (o agente nuevo) entienda el
+pipeline sin depender de conocimiento tribal. Aquí también vive
+<code class="language-plaintext highlighter-rouge">project_manifest.json</code> (ver §8.3) con los IDs del GitHub Project.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/reviews/</code></strong> (opcional, se llena en operación): reportes de
+revisión de épica producidos por O o D, nombrados
+<code class="language-plaintext highlighter-rouge">epic-NNN-review-YYYYMMDD.md</code>. Más de una revisión por épica es
+esperable (las épicas no se cierran).</li>
+</ul>
+
+<h3 id="45-capa-de-auditoría-externa-enjambre-llm">4.5 Capa de auditoría externa (enjambre LLM)</h3>
+
+<p>Workflows que invocan auditores LLM externos como validadores
+adicionales del orquestador. Mínimo:</p>
+
+<ul>
+  <li><strong>Auditor de PR (único):</strong> invocado por el orquestador en cada PR.
+Recibe diff + AGENTS.md + ADRs relevantes + N2 de la épica. Devuelve
+veredicto estructurado contra checklist fijo. Aplica label
+<code class="language-plaintext highlighter-rouge">audit/pass</code> o <code class="language-plaintext highlighter-rouge">audit/fail</code>. El gate único exige <code class="language-plaintext highlighter-rouge">audit/pass</code>. Ver
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md</code> para implementación.
+<strong>Implementado exclusivamente por D (DeepSeek V4 Flash); G no
+audita PR.</strong></li>
+</ul>
+
+<p><strong>No incluido como workflow del kit</strong> (son procesos manuales en chat,
+no automatizados):</p>
+
+<ul>
+  <li><strong>Auditoría dual de documentos iniciales</strong>: la hace el arquitecto
+humano en chat con D y G como co-auditores, usando
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>. Cuando el N2 viene como par
+<code class="language-plaintext highlighter-rouge">.md</code> + script, la auditoría confirma tres cosas a la vez:
+coherencia interna del <code class="language-plaintext highlighter-rouge">.md</code>, fidelidad del script al <code class="language-plaintext highlighter-rouge">.md</code>, y
+consistencia de rutas y nombres.</li>
+  <li><strong>Revisión de épica</strong>: la hace el arquitecto humano en chat con O
+(vía <code class="language-plaintext highlighter-rouge">.zip</code>), o opcionalmente con D (vía <code class="language-plaintext highlighter-rouge">.md</code> concatenado),
+usando <code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code>. Produce un reporte con
+hallazgos por Issue + Issues sugeridos.</li>
+</ul>
+
+<h3 id="46-capa-de-telemetría">4.6 Capa de telemetría</h3>
+
+<p>Mecanismos que capturan métricas operacionales por Issue:</p>
+
+<ul>
+  <li><strong>Tokens consumidos</strong> por el auditor LLM en el ciclo del Issue.</li>
+  <li><strong>Iteraciones del ejecutor</strong> (cuántos pushes hasta pasar CI).</li>
+  <li><strong>Tiempo de ciclo</strong> entre asignación del Issue y merge.</li>
+  <li><strong>Tasa de falsos positivos del auditor</strong> (PRs rechazados por
+<code class="language-plaintext highlighter-rouge">audit/fail</code> que luego pasan tras intervención mínima del humano).</li>
+  <li><strong>Frecuencia de gates humanos disparados</strong> y por qué.</li>
+</ul>
+
+<p>Estos datos se publican como comentario estructurado en el PR al
+cierre. Buscable con <code class="language-plaintext highlighter-rouge">gh pr list --search "[telemetry]"</code>. <strong>No hay
+base de datos a mantener.</strong></p>
+
+<hr />
+
+<h2 id="5-topología-de-workflows">5. Topología de workflows</h2>
+
+<p>El kit organiza la lógica de orquestación en tres capas de workflows,
+con responsabilidades disjuntas. Esta topología no depende del stack.</p>
+
+<h3 id="51-punto-de-entrada-eventos">5.1 Punto de entrada (eventos)</h3>
+
+<p>Exactamente dos workflows reaccionan a eventos del repositorio:</p>
+
+<ul>
+  <li><strong>Orquestador principal:</strong> dispara en eventos de PR (apertura,
+sincronización, etiquetado) y en push a <code class="language-plaintext highlighter-rouge">main</code>. Es el único que
+invoca validadores. Acepta <code class="language-plaintext highlighter-rouge">workflow_dispatch</code> con input
+<code class="language-plaintext highlighter-rouge">skip_validators</code> (CSV) para saltar validadores nombrados en runs
+manuales. Mantiene una concurrencia tal que runs obsoletos del
+mismo PR se cancelan, pero un merge en vuelo nunca se cancela.</li>
+  <li><strong>Etiquetador de formularios:</strong> dispara en apertura/edición de
+Issues. Traduce las selecciones del formulario estructurado en
+labels que el orquestador entiende (<code class="language-plaintext highlighter-rouge">type/*</code>, <code class="language-plaintext highlighter-rouge">priority/*</code>,
+<code class="language-plaintext highlighter-rouge">requires-human-review</code> cuando la complejidad declarada es “large”).</li>
+</ul>
+
+<p>Cualquier otro workflow del kit es <strong>reusable</strong> (<code class="language-plaintext highlighter-rouge">workflow_call</code>) y se
+invoca desde el orquestador. Esta separación impide que validadores
+disparen entre sí o se ejecuten fuera del flujo controlado.</p>
+
+<h3 id="52-validadores-reusables">5.2 Validadores reusables</h3>
+
+<p>Cada validador es un workflow autónomo invocable. El kit base incluye,
+como mínimo:</p>
+
+<ul>
+  <li><strong>CI funcional:</strong> invoca el script completo de validación. Es el
+único que sabe del stack (en cada kit derivado).</li>
+  <li><strong>Governance:</strong> validadores agnósticos de stack:
+    <ul>
+      <li>Secret scanning (gitleaks o equivalente).</li>
+      <li>Dependency review.</li>
+      <li>Título de PR contra Conventional Commits, con instrucción de
+recuperación embebida en el error (ver §10 C11).</li>
+      <li>Presupuesto de tamaño de PR (default: 2000 líneas, ver §10 C4).</li>
+      <li><strong>Issue link required</strong>: el body del PR debe contener
+<code class="language-plaintext highlighter-rouge">Closes/Fixes/Resolves #N</code>. Sin esto, fail con instrucción
+embebida.</li>
+      <li><strong>CHANGELOG validation</strong>: si el PR toca código fuente (detectado
+por extensión), exige que <code class="language-plaintext highlighter-rouge">CHANGELOG.md</code> tenga al menos una línea
+nueva bajo <code class="language-plaintext highlighter-rouge">## [Unreleased]</code>. PRs puramente de docs o scripts
+están exentos.</li>
+      <li><strong>Test scaffold immutability</strong> (<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>):
+blob SHA per-archivo contra el commit scaffold de tests
+pre-cargados. Auto-desactivado si el primer commit de la rama no
+es scaffold.</li>
+    </ul>
+  </li>
+  <li><strong>Auditoría LLM de PR:</strong> invoca al auditor único de PR. Implementado
+por D vía API (ver <code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md</code>).</li>
+</ul>
+
+<p>Añadir validadores adicionales es trivial: nuevo workflow reusable,
+nuevo job en el orquestador, nuevo <code class="language-plaintext highlighter-rouge">needs</code> en el gate de convergencia.</p>
+
+<h3 id="53-workflows-post-gate">5.3 Workflows post-gate</h3>
+
+<p>Después del gate de convergencia, tres workflows reaccionan según el
+contexto:</p>
+
+<ul>
+  <li><strong>Auto-merge + asignación de siguiente Issue:</strong> en eventos de PR.
+Verifica condiciones de fusión, aplica circuit breaker, ejecuta el
+merge (squash a <code class="language-plaintext highlighter-rouge">main</code>), determina qué Issue cerró el PR (parsing
+<code class="language-plaintext highlighter-rouge">Closes #N</code> primero, fallback al último Issue con label de ejecutor
+cerrado recientemente), verifica salud de <code class="language-plaintext highlighter-rouge">main</code>, selecciona el
+siguiente Issue <strong>FIFO</strong> (el más viejo elegible con label de tarea
+estructurada y sin label de ejecutor) tras un <code class="language-plaintext highlighter-rouge">sleep</code> previo, y
+delega al workflow de preparación de rama.</li>
+  <li><strong>Preparación de rama del siguiente Issue</strong> (workflow reusable
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>): lee el body del Issue, resuelve el
+nombre de la rama (declarado en body o computado), parsea la
+sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>, crea la rama desde <code class="language-plaintext highlighter-rouge">main</code>,
+escribe los archivos del scaffold y commit
+<code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>. Si no hay tests, commit vacío
+<code class="language-plaintext highlighter-rouge">chore(EXX-NNN): initialize branch for #N</code>. Push de la rama.
+<strong>Aplica la etiqueta del ejecutor como paso final atómico.</strong> Si
+cualquier paso anterior falla, la etiqueta no se aplica y el
+ejecutor no toma la tarea. Detalle del modelo en §11.6.</li>
+  <li><strong>Salud post-merge:</strong> en push a <code class="language-plaintext highlighter-rouge">main</code>. Registra el resultado de los
+validadores. Si <code class="language-plaintext highlighter-rouge">main</code> quedó rota, abre (o actualiza) issue de
+incidente con labels que el asignador de tareas excluye, pausando al
+ejecutor automáticamente.</li>
+</ul>
+
+<hr />
+
+<h2 id="6-sistema-de-labels">6. Sistema de labels</h2>
+
+<p>El vocabulario de labels es <strong>parte del contrato</strong>. No es decoración
+(con la excepción explícita de las labels de prioridad — ver §6.3).
+Cada label canónica tiene semántica activa: workflows leen, escriben y
+discriminan según labels. Renombrar una label sin actualizar workflows
+rompe el sistema.</p>
+
+<h3 id="61-labels-de-flujo-de-trabajo">6.1 Labels de flujo de trabajo</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">&lt;agent&gt;-task</code></strong> (nombre genérico; en el primer proyecto:
+<code class="language-plaintext highlighter-rouge">jules-task</code>): Issue estructurado vía formulario, elegible para ser
+asignado a un agente ejecutor. Aplicada automáticamente por el
+formulario.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">&lt;agent&gt;</code></strong> (nombre genérico; en el primer proyecto: <code class="language-plaintext highlighter-rouge">jules</code>):
+Issue actualmente asignado al ejecutor. <strong>Aplicada por
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> como paso final atómico tras éxito
+completo del workflow.</strong> El asignador excluye Issues con esta label
+para evitar doble asignación. <strong>Esta label nunca se retira.</strong> Si
+un Issue mal especificado debe descartarse, se cierra el Issue (la
+label se queda con él como parte de la historia) y se crea uno
+nuevo. La única “edición” del Issue por la máquina es la aplicación
+inicial de esta label.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">auto-merge</code></strong>: PR elegible para fusión automática si todos los
+gates pasan. Aplicada por el etiquetador de PR cuando el Issue
+enlazado es <code class="language-plaintext highlighter-rouge">&lt;agent&gt;-task</code> y el PR no toca paths protegidos.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">requires-human-review</code></strong>: bloquea auto-merge incondicionalmente.
+Aplicada automáticamente por path-based protection, por incidente en
+<code class="language-plaintext highlighter-rouge">main</code>, por complejidad declarada como “large” en el formulario, o
+manualmente por el arquitecto.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">audit/pass</code></strong> y <strong><code class="language-plaintext highlighter-rouge">audit/fail</code></strong>: veredicto del auditor LLM
+externo (D) sobre el PR. El gate único exige <code class="language-plaintext highlighter-rouge">audit/pass</code>.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">architect-approved</code></strong>: aplicada manualmente por el arquitecto
+humano sobre N1 y N2 (par <code class="language-plaintext highlighter-rouge">.md</code> + script) en <code class="language-plaintext highlighter-rouge">docs/backlog/</code> tras
+la auditoría manual D+G en chat. Prerequisito para que el script
+bash de creación de Issues pueda ejecutarse.</li>
+</ul>
+
+<p><strong>Nota sobre <code class="language-plaintext highlighter-rouge">auto-merge</code> en sync:</strong> la label se aplica en el evento
+<code class="language-plaintext highlighter-rouge">opened</code>. En eventos <code class="language-plaintext highlighter-rouge">synchronize</code> posteriores, <strong>nunca se re-aplica</strong>
+si un humano la retiró intencionalmente. El workflow respeta la
+decisión humana.</p>
+
+<h3 id="62-labels-de-exclusión">6.2 Labels de exclusión</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">blocked</code></strong>: Issue no puede proceder; depende de algo externo.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">needs-design</code></strong>: Issue requiere decisión arquitectónica antes de
+ejecutarse.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">needs-triage</code></strong>: Issue no evaluado aún para priorización.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">incident</code></strong> y <strong><code class="language-plaintext highlighter-rouge">main-broken</code></strong>: Issues de incidente
+auto-generados. Pausan al agente mientras estén abiertas.</li>
+</ul>
+
+<h3 id="63-labels-de-prioridad-decorativas">6.3 Labels de prioridad (decorativas)</h3>
+
+<p>Cuatro niveles, mutuamente excluyentes:</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">priority/p0</code></strong>: drop everything.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">priority/p1</code></strong>: próximo.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">priority/p2</code></strong>: pronto.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">priority/p3</code></strong>: backlog.</li>
+</ul>
+
+<p><strong>Estas labels son anotación humana para visualización en el Kanban.
+El asignador NO las usa.</strong> El asignador es FIFO estricto: toma el
+Issue elegible más viejo. La priorización real está encodificada en el
+<strong>orden de creación</strong> de los Issues, que el arquitecto controla al
+diseñarlos secuencialmente con O. Romper este modelo de prioridad
+calendarizada es deliberado: la cadena se diseña para el ritmo del
+arquitecto humano, no para un sprint board.</p>
+
+<h3 id="64-labels-de-tipo">6.4 Labels de tipo</h3>
+
+<p>Reflejan el tipo de Conventional Commit del PR resultante. El conjunto
+mínimo: <code class="language-plaintext highlighter-rouge">type/feat</code>, <code class="language-plaintext highlighter-rouge">type/fix</code>, <code class="language-plaintext highlighter-rouge">type/chore</code>, <code class="language-plaintext highlighter-rouge">type/docs</code>,
+<code class="language-plaintext highlighter-rouge">type/refactor</code>, <code class="language-plaintext highlighter-rouge">type/test</code>, <code class="language-plaintext highlighter-rouge">type/perf</code>.</p>
+
+<h3 id="65-labels-de-excepción-explícita">6.5 Labels de excepción explícita</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">size-override</code></strong>: PR excede el presupuesto de tamaño pero está
+aprobado con justificación en la descripción.</li>
+  <li>Otras excepciones se documentan con su propia label y workflow de
+enforcement.</li>
+</ul>
+
+<hr />
+
+<h2 id="7-gates-de-calidad">7. Gates de calidad</h2>
+
+<p>Un gate de calidad es un punto del pipeline donde el avance se
+condiciona al cumplimiento de una propiedad verificable. El kit define
+ocho gates, todos obligatorios. Cualquier excepción se documenta en un
+ADR que justifica el bypass.</p>
+
+<p><strong>G1. Documentación inicial auditada antes de generar Issues.</strong> Ningún
+script bash de creación de Issues hijos puede ejecutarse contra un
+repositorio cuyo N2 (par <code class="language-plaintext highlighter-rouge">.md</code> + script) no tenga label
+<code class="language-plaintext highlighter-rouge">architect-approved</code>. La auditoría ocurre en <strong>chat manual</strong> del
+arquitecto humano con D y G como co-auditores; la aplicación de la
+label es acto manual del arquitecto. La auditoría confirma además
+que el script bash refleja fielmente el <code class="language-plaintext highlighter-rouge">.md</code>.</p>
+
+<p><strong>G2. Auditoría LLM antes de merge.</strong> Todo PR debe tener <code class="language-plaintext highlighter-rouge">audit/pass</code>
+del auditor D de PR. <code class="language-plaintext highlighter-rouge">audit/fail</code> bloquea aunque el resto del CI esté
+verde. <strong>Solo D audita PR</strong>; G no participa en este gate.</p>
+
+<p><strong>G3. Path-based protection.</strong> Todo PR que toque paths protegidos
+(workflows, manifiestos, migraciones, Docker, ADRs, contratos
+públicos, archivos del scaffold de tests pre-cargados) recibe
+automáticamente <code class="language-plaintext highlighter-rouge">requires-human-review</code>. La label no se puede remover
+sin intervención del arquitecto. La lista exacta de patrones está en
+el <strong>Apéndice A</strong>.</p>
+
+<p><strong>G4. Inmutabilidad del scaffold de tests pre-cargados.</strong> El ejecutor
+no puede modificar ni eliminar archivos del primer commit
+<code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code> de la rama del Issue. El guard se
+implementa con <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>: blob SHA per-archivo
+entre el commit scaffold y HEAD. El check se auto-desactiva cuando el
+primer commit no es scaffold (Issues sin tests, ramas legacy). Ver
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9</code> para mecánica completa.</p>
+
+<p><strong>G5. Aprobación de CODEOWNERS.</strong> Branch protection exige aprobación
+de Code Owners en paths configurados. Esta es la última red de
+seguridad humana.</p>
+
+<p><strong>G6. Circuit breaker de auto-merge.</strong> Máximo N fusiones automáticas
+en ventana móvil de 2 horas (default: 10). Al disparar, pausa
+auto-merge hasta que la ventana se vacíe naturalmente o el arquitecto
+ajuste el umbral con justificación.</p>
+
+<p><strong>G7. Salud de <code class="language-plaintext highlighter-rouge">main</code>.</strong> Si la última corrida del orquestador en
+<code class="language-plaintext highlighter-rouge">main</code> no es exitosa, el asignador rehusa asignar la siguiente tarea
+hasta que se cierre el issue de incidente.</p>
+
+<p><strong>G8. Revisión de épica con O (cuando se decida).</strong> Las épicas no se
+cierran. La revisión de épica es opcional y la decide el arquitecto.
+Existen dos modos:</p>
+
+<ul>
+  <li><strong>Cierre rápido por confianza</strong> (default): el arquitecto observa
+que los Issues de un bloque o de la épica están completos y sigue
+con la siguiente sesión de diseño. Sin auditoría adicional.</li>
+  <li><strong>Revisión profunda con O</strong> (y opcionalmente también D): el
+arquitecto produce un <code class="language-plaintext highlighter-rouge">.zip</code> del repo (para O) o un <code class="language-plaintext highlighter-rouge">.md</code>
+concatenado equivalente (para D), entrega a una o ambas LLMs en
+chat usando <code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code>, y recibe un
+reporte con hallazgos por Issue + Issues sugeridos. Si invoca a
+ambas, compara las dos auditorías. Indicado para: primera épica del
+proyecto, épica que toca arquitectura, épica con alta tasa de
+retrabajo observable, o cualquier épica donde el arquitecto
+sospeche que conviene mirar dos veces.</li>
+</ul>
+
+<p>Ninguno de los dos modos sella la épica. La épica permanece “abierta”
+en el sentido de que el arquitecto puede añadirle Issues nuevos en
+cualquier momento (Issues de corrección, ampliaciones).</p>
+
+<hr />
+
+<h2 id="8-archivos-canónicos-del-kit">8. Archivos canónicos del kit</h2>
+
+<p>Todo kit derivado debe incluir los siguientes archivos, con los
+nombres exactos o equivalentes documentados:</p>
+
+<h3 id="81-documentos-raíz">8.1 Documentos raíz</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">README.md</code></strong>: introducción al kit y al proyecto resultante.
+Bootstrap del día 1, comandos canónicos, estructura del repositorio,
+decisiones de diseño explicadas.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">AGENTS.md</code></strong> (raíz): reglas inviolables para todo agente IA que
+escriba código. Estructura: propósito, arquitectura, prohibiciones,
+Definition of Done, lectura obligatoria al empezar.
+<strong>Incluye explícitamente la regla</strong>: “Si no se provee una rama de
+trabajo en el Issue, debes crear una rama desde <code class="language-plaintext highlighter-rouge">main</code> siguiendo la
+convención <code class="language-plaintext highlighter-rouge">&lt;type&gt;/&lt;E##-###&gt;-&lt;slug&gt;</code>.”</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">CONTRIBUTING.md</code></strong>: equivalente humano de AGENTS.md.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">CHANGELOG.md</code></strong>: bajo “Keep a Changelog” + SemVer.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">PR_JUSTIFICATION.md.template</code></strong>: plantilla para PRs que tocan
+paths protegidos. Por-PR, se borra al fusionar.</li>
+</ul>
+
+<h3 id="82-configuración-de-hooks-git">8.2 Configuración de hooks Git</h3>
+
+<ul>
+  <li><strong>Manifiesto de hooks</strong> (formato según la herramienta elegida en
+cada kit derivado: lefthook, pre-commit, husky, etc.) que
+materializa:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">pre-commit</code>: script ligero de validación.</li>
+      <li><code class="language-plaintext highlighter-rouge">commit-msg</code>: enforcement de Conventional Commits.</li>
+      <li><code class="language-plaintext highlighter-rouge">pre-push</code>: script completo de validación.</li>
+      <li><code class="language-plaintext highlighter-rouge">post-merge</code>: recordatorio de re-sincronización de dependencias si
+cambiaron manifiestos.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="83-plantillas-y-configuración-de-github">8.3 Plantillas y configuración de GitHub</h3>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/CODEOWNERS</code></strong>: define quién aprueba cada path. Las
+entradas combinadas con branch protection son la red humana final.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/labels.yml</code></strong> (o equivalente): manifiesto declarativo del
+conjunto de labels canónicas con colores y descripciones.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/PULL_REQUEST_TEMPLATE.md</code></strong>: descripción de PR por
+defecto con checklist de Definition of Done.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/ISSUE_TEMPLATE/agent_task.yml</code></strong> (o nombre equivalente,
+por ejemplo <code class="language-plaintext highlighter-rouge">jules_task.yml</code> en el primer proyecto): formulario
+estructurado para tareas de agente. Estructura prescrita:
+    <ul>
+      <li><strong>Bloque WARNING en el primer markdown</strong> (no editable por el
+agente), instruyendo al ejecutor que: (a) la validación local con
+el script completo es obligatoria antes de crear el PR; (b) si
+el body declara una rama (<code class="language-plaintext highlighter-rouge">## 🌿 Rama asignada: ...</code>), debe usar
+esa rama y no crear otra; <strong>si no la declara, debe crear una
+rama desde <code class="language-plaintext highlighter-rouge">main</code></strong> siguiendo la convención
+<code class="language-plaintext highlighter-rouge">&lt;type&gt;/&lt;E##-###&gt;-&lt;slug&gt;</code>; (c) el título del PR sigue Conventional
+Commits; (d) si el PR excede el tamaño, debe aplicar
+<code class="language-plaintext highlighter-rouge">size-override</code> con justificación.</li>
+      <li>Campos estructurados de texto libre: contexto, criterios de
+aceptación, notas técnicas, comandos extra de validación.</li>
+      <li>Dropdowns: tipo (<code class="language-plaintext highlighter-rouge">type/*</code>), prioridad (<code class="language-plaintext highlighter-rouge">priority/*</code> decorativa,
+opcional), <strong>complejidad estimada</strong> (<code class="language-plaintext highlighter-rouge">small</code>/<code class="language-plaintext highlighter-rouge">medium</code>/<code class="language-plaintext highlighter-rouge">large</code>;
+“large” dispara <code class="language-plaintext highlighter-rouge">requires-human-review</code> automático).</li>
+      <li>Campo de texto: <strong>rutas afectadas</strong> (estimadas, para que
+CODEOWNERS y otros agentes detecten colisiones).</li>
+      <li><strong>Checklist de Definition of Done editable</strong> que el agente marca
+al avanzar. Convierte el DoD en máquina de estado visible en
+GitHub UI.</li>
+      <li>Sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code> (rellenable por el
+diseñador LLM, no por el formulario en sí; el formulario es para
+Issues humanos; los Issues estructurados generados por el script
+de N2 ya traen esta sección poblada).</li>
+    </ul>
+  </li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/ISSUE_TEMPLATE/bug_report.yml</code></strong> y
+<strong><code class="language-plaintext highlighter-rouge">.github/ISSUE_TEMPLATE/feature_request.yml</code></strong>: formularios para
+humanos.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/ISSUE_TEMPLATE/config.yml</code></strong>: deshabilita issues en
+blanco.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/project_manifest.json</code></strong> (o <code class="language-plaintext highlighter-rouge">docs/orchestrator/</code>):
+manifiesto declarativo con IDs del GitHub Project asociado, sus
+campos custom (Epic, Priority, etc.) y los IDs de cada opción. Los
+scripts de creación de Issues consumen este manifiesto en lugar de
+hardcodear UUIDs. Generado por un script idempotente
+(<code class="language-plaintext highlighter-rouge">generate_project_manifest.sh</code>).</li>
+</ul>
+
+<h3 id="84-workflows">8.4 Workflows</h3>
+
+<p>Los workflows base, descritos por su propósito (no por su contenido):</p>
+
+<ul>
+  <li><strong>Orquestador principal</strong>: punto de entrada, validadores en
+paralelo, gate de convergencia, input <code class="language-plaintext highlighter-rouge">skip_validators</code>.</li>
+  <li><strong>CI por stack</strong>: invoca el script completo. Único workflow
+específico de plataforma.</li>
+  <li><strong>Governance</strong>: validadores universales (secret scan, dep review,
+Conventional Commits, PR size, Issue link, CHANGELOG, test
+scaffold immutability).</li>
+  <li><strong>Auto-merge + selección FIFO de siguiente Issue</strong>: post-gate,
+evento de PR.</li>
+  <li><strong>Preparación de rama</strong> (<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>): reusable,
+invocado por el de auto-merge cuando hay siguiente Issue elegible.
+Materializa el scaffold de tests pre-cargados y aplica la etiqueta
+del ejecutor como paso final atómico.</li>
+  <li><strong>Salud post-merge</strong>: post-gate, evento de push a <code class="language-plaintext highlighter-rouge">main</code>.</li>
+  <li><strong>Etiquetador de formularios</strong>: traduce campos de formulario a
+labels (incluyendo <code class="language-plaintext highlighter-rouge">requires-human-review</code> por complejidad “large”).</li>
+  <li><strong>Etiquetador de PR</strong>: aplica <code class="language-plaintext highlighter-rouge">auto-merge</code> o
+<code class="language-plaintext highlighter-rouge">requires-human-review</code> según el Issue enlazado y los paths
+tocados. <strong>Nunca re-aplica <code class="language-plaintext highlighter-rouge">auto-merge</code> en sync</strong>.</li>
+  <li><strong>Auditor LLM de PR (<code class="language-plaintext highlighter-rouge">audit-pr.yml</code>)</strong>: invoca a D y publica
+veredicto. Único workflow LLM del kit.</li>
+</ul>
+
+<h3 id="85-scripts-del-kit">8.5 Scripts del kit</h3>
+
+<p>En <code class="language-plaintext highlighter-rouge">tools/ci/</code>:</p>
+
+<ul>
+  <li><strong>Script ligero</strong> (<code class="language-plaintext highlighter-rouge">light.sh</code>): validación rápida pre-commit, con
+flags <code class="language-plaintext highlighter-rouge">--only=&lt;scope&gt;</code> y <code class="language-plaintext highlighter-rouge">--continue</code>.</li>
+  <li><strong>Script completo</strong> (<code class="language-plaintext highlighter-rouge">full.sh</code>): la fuente única de verdad de “qué
+ejecuta CI”, con mismos flags. El workflow de CI lo invoca
+literalmente. Incluye bootstrap y codegen como pasos previos
+cuando aplique.</li>
+  <li><strong>Biblioteca compartida</strong> (<code class="language-plaintext highlighter-rouge">lib/_common.sh</code>): utilidades de
+logging, timing, detección de stack. Cargada por light y full con
+<strong>fallback inline</strong> si no se encuentra.</li>
+  <li><strong>Script de sincronización de labels</strong> (<code class="language-plaintext highlighter-rouge">bootstrap-labels.sh</code>):
+bootstrap idempotente del conjunto de labels canónicas al
+repositorio de GitHub, leyendo <code class="language-plaintext highlighter-rouge">.github/labels.yml</code> y aplicando
+vía <code class="language-plaintext highlighter-rouge">gh label</code>.</li>
+  <li><strong>Script de configuración de branch protection</strong>
+(<code class="language-plaintext highlighter-rouge">branch_protections_rules.sh</code>): aplica declarativamente las reglas
+de branch protection vía <code class="language-plaintext highlighter-rouge">gh api</code>. Reemplaza la configuración
+clic-a-clic en la UI.</li>
+  <li><strong>Script generador del project_manifest</strong>
+(<code class="language-plaintext highlighter-rouge">generate_project_manifest.sh</code>): produce <code class="language-plaintext highlighter-rouge">project_manifest.json</code> a
+partir de la inspección del GitHub Project vía <code class="language-plaintext highlighter-rouge">gh api graphql</code>.</li>
+  <li><strong>Script de empaquetado de revisión de épica</strong> (opcional): produce
+el <code class="language-plaintext highlighter-rouge">.zip</code> para O y/o el <code class="language-plaintext highlighter-rouge">.md</code> concatenado para D, con exclusiones
+razonables (<code class="language-plaintext highlighter-rouge">node_modules/</code>, <code class="language-plaintext highlighter-rouge">build/</code>, <code class="language-plaintext highlighter-rouge">dist/</code>, <code class="language-plaintext highlighter-rouge">.venv/</code>, etc.).</li>
+  <li><strong>Directorio de hooks de extensión</strong> para que cada proyecto añada
+validaciones adicionales sin tocar el kit base.</li>
+  <li><strong>Validador de inmutabilidad del scaffold</strong>
+(<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>): comparación blob SHA per-archivo
+entre el commit scaffold (primer commit tras <code class="language-plaintext highlighter-rouge">merge-base</code>) y HEAD
+del PR. Auto-desactivación cuando el subject del primer commit no
+matchea <code class="language-plaintext highlighter-rouge">^test\([eE][0-9]+-[0-9]+\): scaffold red tests$</code>.</li>
+</ul>
+
+<p>En <code class="language-plaintext highlighter-rouge">.github/scripts/</code>:</p>
+
+<ul>
+  <li><strong>Script preparador de rama</strong> (<code class="language-plaintext highlighter-rouge">prepare_issue_branch.py</code> o
+equivalente): leído por el workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>. Lee
+el body del Issue, resuelve el nombre de la rama, parsea la sección
+<code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>, materializa los archivos, hace
+commit y push. <strong>Aplica la etiqueta del ejecutor como paso final
+atómico.</strong></li>
+</ul>
+
+<h3 id="86-scripts-de-creación-de-issues">8.6 Scripts de creación de Issues</h3>
+
+<ul>
+  <li><strong>Un script por bloque de N2</strong> (no un script monolítico con flag).
+Cada bloque es replayable idempotente. Convención de nombre:
+<code class="language-plaintext highlighter-rouge">scripts/create_issues_E##_bNN.sh</code> (o equivalente). El script lee
+el N2 <code class="language-plaintext highlighter-rouge">.md</code> correspondiente (fuente de verdad) y sube los Issues
+con sus bodies poblados (incluyendo la sección
+<code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>).</li>
+</ul>
+
+<h3 id="87-tests-del-propio-kit">8.7 Tests del propio kit</h3>
+
+<ul>
+  <li><strong>Tests de las herramientas de governance</strong> (carpeta <code class="language-plaintext highlighter-rouge">tools/</code> del
+proyecto): toda herramienta que decida el destino de un PR
+(validador de CHANGELOG, <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>, futuros
+validadores) debe tener su propia suite de tests que corra en CI.
+Razón: estas herramientas son <strong>código que decide qué se mergea</strong>;
+un bug aquí es un agujero estructural del pipeline. <strong>Esta regla
+es inviolable.</strong> No hay validador en el kit sin tests que prueben
+sus casos de éxito y de fallo conocidos.</li>
+</ul>
+
+<hr />
+
+<h2 id="9-directorios-canónicos">9. Directorios canónicos</h2>
+
+<p>Estructura mínima compartida por todos los kits derivados (los nombres
+exactos pueden adaptarse si se documenta la traducción):</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/</code></strong> — configuración de GitHub (workflows, scripts,
+plantillas, CODEOWNERS, project_manifest).</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">.github/scripts/</code></strong> — scripts ejecutados por workflows
+(<code class="language-plaintext highlighter-rouge">prepare_issue_branch.py</code>, etc.).</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">tools/ci/</code></strong> — scripts de validación, biblioteca compartida,
+hooks de extensión, scripts de bootstrap.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">tools/auditor-prompts/</code></strong> — system prompts del auditor LLM
+automatizado (solo <code class="language-plaintext highlighter-rouge">pr-auditor-system.md</code>; los prompts manuales
+viven fuera del repo del proyecto, en el kit conceptual).</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/backlog/</code></strong> — N1 y N2 versionados, aprobados manualmente
+por el arquitecto tras auditoría manual D+G en chat. <strong>El N2 vive
+como par <code class="language-plaintext highlighter-rouge">.md</code> + script bash.</strong></li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/adr/</code></strong> — Architecture Decision Records.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/orchestrator/</code></strong> — documentación del kit dentro del
+proyecto. Aquí también puede vivir <code class="language-plaintext highlighter-rouge">project_manifest.json</code>.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">docs/reviews/</code></strong> — reportes de revisión de épica producidos por
+O o D (opcional, se llena en operación).</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">scripts/</code></strong> — scripts de creación de Issues por bloque,
+utilidades operacionales del proyecto.</li>
+</ul>
+
+<p><strong>Eliminados respecto a v1.1</strong>:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/</code> (manifiesto de hashes
+per-épica). Ya no existe; la inmutabilidad se verifica contra el
+commit scaffold de cada rama.</li>
+  <li><code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/&lt;issue&gt;-*</code> como prescripción rígida. Cada
+proyecto decide dónde viven sus tests; el scaffold declara las
+rutas explícitamente en el body del Issue.</li>
+</ul>
+
+<hr />
+
+<h2 id="10-convenciones-inviolables">10. Convenciones inviolables</h2>
+
+<p>Las siguientes convenciones se aplican a todo proyecto basado en este
+kit, independientemente del stack:</p>
+
+<p><strong>C1. CI ejecuta el script local, nada más.</strong> El workflow de CI no
+contiene lógica de validación; invoca el script completo. Esto
+mantiene paridad estricta entre validación local y remota.</p>
+
+<p><strong>C2. Conventional Commits a tres capas.</strong> Hook <code class="language-plaintext highlighter-rouge">commit-msg</code> local,
+validador de governance en CI, regla explícita en AGENTS.md. Las tres
+capas se refuerzan mutuamente; ninguna es redundante. Los <strong>scopes
+válidos están enumerados explícitamente</strong> en el AGENTS.md del proyecto
+(por feature, por paquete), no se inventan en el momento.</p>
+
+<p><strong>C3. Un PR cierra un Issue.</strong> El cuerpo del PR incluye <code class="language-plaintext highlighter-rouge">Closes #N</code>,
+<code class="language-plaintext highlighter-rouge">Fixes #N</code> o <code class="language-plaintext highlighter-rouge">Resolves #N</code>. Sin esto, el orquestador no puede cerrar
+correctamente ni seleccionar la siguiente tarea. Es un gate de
+governance: PR sin Issue link enlazado → fail con instrucción
+embebida.</p>
+
+<p><strong>Patrón de Issue de corrección</strong>: cuando un Issue post-merge necesita
+arreglo, se crea un nuevo Issue y su PR referencia ambos:
+<code class="language-plaintext highlighter-rouge">Closes #45, Corrects #32</code>. Esto da trazabilidad sin reabrir el Issue
+original.</p>
+
+<p><strong>C4. Tope de tamaño de PR.</strong> Default: <strong>2000 líneas</strong> (sumadas
+adiciones y borrados). Justificación del cambio respecto al v1.1
+(que prescribía 400): en operación con stacks que generan código
+(Flutter con codegen, Prisma, gRPC, etc.), el límite de 400 produce
+PRs artificialmente troceados o saturación constante de
+<code class="language-plaintext highlighter-rouge">size-override</code>. 2000 es un equilibrio observado entre legibilidad y
+realidad. Cada kit derivado puede reducirlo si el stack lo permite.
+Override explícito con label <code class="language-plaintext highlighter-rouge">size-override</code> y justificación en la
+descripción.</p>
+
+<p><strong>C5. No bypass de hooks locales.</strong> <code class="language-plaintext highlighter-rouge">--no-verify</code> está explícitamente
+prohibido por AGENTS.md. La variable de entorno equivalente solo se
+usa en emergencias documentadas.</p>
+
+<p><strong>C6. Branches por convención.</strong> Patrones: <code class="language-plaintext highlighter-rouge">feat/&lt;slug&gt;</code>,
+<code class="language-plaintext highlighter-rouge">fix/&lt;slug&gt;</code>, <code class="language-plaintext highlighter-rouge">chore/&lt;slug&gt;</code>. Nunca trabajar directo en <code class="language-plaintext highlighter-rouge">main</code>.
+<strong>Cuando el Issue declara una rama</strong> (<code class="language-plaintext highlighter-rouge">## 🌿 Rama asignada: &lt;nombre&gt;</code>),
+el ejecutor usa esa rama y no crea otra. <strong>Cuando el Issue no la
+declara</strong>, el ejecutor crea una desde <code class="language-plaintext highlighter-rouge">main</code> siguiendo la convención
+<code class="language-plaintext highlighter-rouge">&lt;type&gt;/&lt;E##-###&gt;-&lt;slug&gt;</code>.</p>
+
+<p><strong>C7. Bloque de diseño de tamaño decidido por O; épica sin tope.</strong> El
+<strong>bloque</strong> es la unidad de diseño: el arquitecto y O producen un
+conjunto de Issues con sus tests rojos pre-cargados en una sola
+sesión coherente, que D+G auditan en chat antes de subir a GitHub. <strong>El
+tamaño del bloque lo decide O según su análisis de capacidad por
+sesión</strong>, no es un parámetro fijo. La justificación es la capacidad
+de contexto del LLM diseñador (que produzca tests robustos), no la
+deuda de integración. <strong>La épica no tiene tope de tamaño</strong> y es una
+organización lógica (carpeta, label, columna del Kanban), no una
+unidad de control de versiones.</p>
+
+<p><strong>C8. Todos los PRs van directo a <code class="language-plaintext highlighter-rouge">main</code> con squash-merge.</strong> No
+existen ramas intermedias (<code class="language-plaintext highlighter-rouge">epic/N</code>, <code class="language-plaintext highlighter-rouge">develop</code>, etc.). La épica como
+rama de git se descartó en v1.1 por fricción observada. El squash-merge
+mantiene <code class="language-plaintext highlighter-rouge">main</code> legible (un commit por feature, fácil de revertir).</p>
+
+<p><strong>C9. Squash-merge por defecto.</strong> Refuerza C8.</p>
+
+<p><strong>C10. Las decisiones arquitectónicas viven en ADRs.</strong> Cambios que
+toquen contratos públicos, capas de arquitectura, manifiestos del
+stack o reglas de seguridad exigen ADR en el mismo PR. Sin ADR, el
+guard mecánico falla.</p>
+
+<p><strong>C11. Mensajes-instrucción al agente embebidos en errores del CI.</strong>
+Cuando un validador detecta un error que el agente puede resolver
+<strong>sin commit nuevo</strong> (título de PR mal formado, body sin <code class="language-plaintext highlighter-rouge">Closes #N</code>,
+label faltante), el mensaje de error debe incluir la receta exacta de
+recuperación, prefijada por <code class="language-plaintext highlighter-rouge">::error::🤖 JULES/AGENT INSTRUCTION:</code>. La
+receta es un comando ejecutable (típicamente <code class="language-plaintext highlighter-rouge">gh pr edit ...</code> o
+<code class="language-plaintext highlighter-rouge">gh issue edit ...</code>). El propósito es self-healing de costo cero:
+el agente recibe la instrucción exacta de cómo arreglar lo que rompió
+sin contaminar la historia con commits cosméticos.</p>
+
+<p><strong>C12. El ejecutor nunca edita el Issue.</strong> La única modificación del
+Issue por la máquina es la aplicación inicial automática de la
+etiqueta del ejecutor por el workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>.
+Toda otra modificación del Issue (cambiar body, retirar labels,
+cerrar, reasignar) la hace el arquitecto humano. <strong>La etiqueta del
+ejecutor nunca se retira</strong>: si un Issue mal especificado debe
+descartarse, se cierra el Issue (la label se queda con él) y se crea
+uno nuevo.</p>
+
+<p><strong>C13. La última operación es la señal.</strong> Cuando un workflow prepara
+un Issue para ser tomado por el ejecutor, <strong>aplica la etiqueta del
+ejecutor como paso final atómico</strong> tras verificar éxito completo
+(rama creada, scaffold materializado, push exitoso). Si cualquier
+paso anterior falla, la etiqueta nunca se aplica y el sistema queda
+en estado limpio para intervención humana. Generalizable a cualquier
+patrón “preparar X, señalar al consumidor”: la señal es lo último.</p>
+
+<p><strong>C14. Auto-desactivación por convención de mensaje de commit.</strong> El
+comportamiento “este validador no aplica a este PR” se codifica en el
+subject del primer commit de la rama, no en archivos de configuración
+externos. Ejemplo: <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code> solo aplica cuando el
+primer commit es <code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>; cualquier otro
+subject (incluyendo <code class="language-plaintext highlighter-rouge">chore(EXX-NNN): initialize branch for #N</code> para
+Issues sin tests) auto-desactiva el check. Esta convención evita
+flags externos que pueden desincronizarse.</p>
+
+<p><strong>C15. Tests sobre las herramientas del kit.</strong> Toda herramienta del
+kit que decida el destino de un PR debe tener su propia suite de
+tests que corra en CI (ver §8.7).</p>
+
+<p><strong>C16. Cero divergencia entre fuente de verdad y artefacto
+materializado.</strong> Lo que el humano lee en GitHub UI (el body del
+Issue, el contenido de un N2 <code class="language-plaintext highlighter-rouge">.md</code>) es bit-a-bit lo que la máquina
+materializa al ejecutar (los archivos del scaffold en disco, los
+Issues que el script bash sube). Las herramientas del kit son
+parsers, no transformadores creativos.</p>
+
+<p><strong>C17. PAT del arquitecto como firma de procedencia.</strong> Los workflows
+operan con un PAT del arquitecto (<code class="language-plaintext highlighter-rouge">JULES_PAT</code> en el primer proyecto,
+nombre genérico <code class="language-plaintext highlighter-rouge">OPERATOR_PAT</code> o equivalente). Este PAT tiene
+propósito doble: (a) permisos elevados sobre <code class="language-plaintext highlighter-rouge">GITHUB_TOKEN</code> (crear
+commits, abrir PRs, enviar menciones <code class="language-plaintext highlighter-rouge">@&lt;agent&gt;</code> que el ejecutor
+honra), (b) <strong>firma de procedencia</strong>: cuando el ejecutor recibe una
+acción firmada con este PAT, reconoce que viene del jefe y obedece.
+Si la misma acción viniera con <code class="language-plaintext highlighter-rouge">GITHUB_TOKEN</code> genérico, podría
+desconfiar. La elección no es puramente técnica.</p>
+
+<hr />
+
+<h2 id="11-integración-con-el-enjambre-llm">11. Integración con el enjambre LLM</h2>
+
+<p>Esta sección describe los puntos de integración entre el kit y el
+ecosistema de modelos de lenguaje. Las identidades concretas de los
+modelos (Opus, Gemini, DeepSeek, etc.) se definen en el documento de
+arquitectura del proyecto, no en el kit. Aquí se definen los <strong>roles</strong>.</p>
+
+<h3 id="111-roles-del-enjambre">11.1 Roles del enjambre</h3>
+
+<ul>
+  <li><strong>Arquitecto LLM (O)</strong>: genera el N1, los N2 por bloque (par <code class="language-plaintext highlighter-rouge">.md</code>
+    <ul>
+      <li>script bash), los tests rojos pre-cargados en cada Issue del N2,
+los ADRs base. Audita la revisión de épica cuando el arquitecto
+humano lo invoca. Acceso manual (chat) en todos sus pasos.</li>
+    </ul>
+  </li>
+  <li><strong>Co-auditores de documentación inicial (D y G)</strong>: auditan los N2
+generados en chat manual del arquitecto, usando
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>. La función adversarial
+(red-team) sobre tests está integrada en esta sesión. Familias
+distintas del arquitecto.</li>
+  <li><strong>Ejecutor (G / Jules)</strong>: implementa el código en respuesta a
+Issues, abre PRs contra <code class="language-plaintext highlighter-rouge">main</code>. Acceso vía integración nativa con
+GitHub. Familia que coincide con uno de los co-auditores de
+documentación (G es ejecutor y co-auditor de docs), pero no con el
+arquitecto (O) ni con el auditor de PR (D). <strong>G no audita PR.</strong></li>
+  <li><strong>Auditor de PR (D)</strong>: revisa cada PR antes del merge. Vía API.
+Familia distinta del ejecutor. Ver
+<code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md</code>.</li>
+  <li><strong>Revisor de épica (O, y opcionalmente D)</strong>: auditoría profunda
+post-épica cuando el arquitecto la invoca. O recibe <code class="language-plaintext highlighter-rouge">.zip</code>; D
+recibe <code class="language-plaintext highlighter-rouge">.md</code> concatenado equivalente. El arquitecto puede comparar
+ambas auditorías.</li>
+  <li><strong>QA humano (Usuario bruto, opcional)</strong>: rol reservado para una
+persona no técnica que valida los programas desde la perspectiva
+del cliente, post-merge. Su flujo se detalla cuando se incorpore.
+No es parte del ciclo automatizado.</li>
+</ul>
+
+<h3 id="112-conmutación-de-roles-entre-artefactos">11.2 Conmutación de roles entre artefactos</h3>
+
+<p>Una misma familia (e incluso un mismo modelo) puede ocupar roles
+distintos sobre <strong>artefactos distintos</strong>, siempre que no audite su
+propio trabajo. Ejemplos válidos:</p>
+
+<ul>
+  <li>G como ejecutor de código + G como co-auditor de documentación
+(artefactos distintos: el código que escribe vs los documentos que
+audita).</li>
+  <li>D como auditor de PR + D como co-auditor de documentación + D como
+revisor opcional de épica (todos sobre artefactos distintos del
+mismo proyecto).</li>
+</ul>
+
+<p>Ejemplo inválido: G auditando un PR escrito por G. Por eso G no
+audita PR.</p>
+
+<p>Esta regla acepta como riesgo residual conocido que dos roles
+distintos de la misma familia compartan sesgos de alignment y blind
+spots de razonamiento. La mitigación es la auditoría dual manual D+G
+en documentación inicial (familias distintas) y la revisión de épica
+con O y opcionalmente D.</p>
+
+<h3 id="113-reglas-de-la-auditoría-llm">11.3 Reglas de la auditoría LLM</h3>
+
+<ul>
+  <li><strong>Veredicto estructurado, no review libre.</strong> Cada auditor responde
+un checklist fijo con respuestas binarias o categóricas. El review
+libre se llena de “se ve bien” cosmético y no es accionable.</li>
+  <li><strong>Reevaluación post-corrección no anula críticas previas.</strong> Cuando
+un auditor LLM se corrige tras feedback (factual o de contexto), sus
+críticas técnicas independientes del error corregido permanecen
+válidas. El prompt del auditor debe forzar este principio
+explícitamente.</li>
+  <li><strong>Cache de prefijos cuando aplique.</strong> System prompts, ADRs base y
+documentos de arquitectura cambian poco. Las APIs que ofrecen cache
+de prefijos (con descuentos del 90% o más) deben usarse para reducir
+el costo efectivo de auditoría por orden de magnitud.</li>
+  <li><strong>Presupuesto explícito por Issue.</strong> El auditor opera contra un tope
+de tokens declarado. Excederlo es señal de patología (Issue
+demasiado grande, scope mal definido, o auditor en bucle).</li>
+  <li><strong>Razonable, no perfecto.</strong> Cada prompt de auditor codifica
+explícitamente la consigna: aprobar lo defendible, comentar las
+dudas, bloquear solo en categorías graves.</li>
+</ul>
+
+<p><strong>Nota operacional (recurso del arquitecto humano).</strong> En la práctica,
+anteceder cada sesión de diseño con O con una frase como <em>“Vamos con
+el Bloque N. Te informo que será auditado, así que haz tu mejor
+esfuerzo.”</em> mejora la calidad observable del output: el LLM produce
+tests más robustos y N2 más completos cuando sabe que su trabajo será
+revisado por otros LLMs y por el arquitecto humano. No es
+solicitación; es un recordatorio que activa cuidado adicional. Va
+acá como nota honesta sobre cómo se opera en la realidad, no como
+regla mecánica.</p>
+
+<h3 id="114-sandbox-del-ejecutor">11.4 Sandbox del ejecutor</h3>
+
+<p>El ejecutor opera dentro de su propio entorno (típicamente una VM o
+contenedor controlado por su proveedor). Esto le da control total
+sobre la ejecución local, lo que es una virtud para la productividad y
+un riesgo para la integridad de los gates. Las defensas mecánicas
+contra un ejecutor que intente optimizar la recompensa por encima de
+la calidad:</p>
+
+<ul>
+  <li><strong>CI corre contra checkout limpio desde Git</strong>, no contra el
+filesystem del ejecutor. Cualquier modificación local del ejecutor
+no committeada es inocua.</li>
+  <li><strong>Guards basados en diff contra la rama base</strong>, no en contenido del
+archivo en el momento del commit. Esto detecta modificaciones a
+archivos inmutables aunque el ejecutor intente revertirlas
+parcialmente.</li>
+  <li><strong>Blob SHA per-archivo</strong> del scaffold de tests pre-cargados,
+verificado en cada PR. Discrepancia detiene la corrida.</li>
+  <li><strong>Permisos de filesystem read-only</strong> sobre directorios de scaffold
+cuando la plataforma del ejecutor lo permita. Defensa en
+profundidad. (En Jules no es garantía; los blob SHAs sí.)</li>
+</ul>
+
+<h3 id="115-acciones-manuales-del-arquitecto">11.5 Acciones manuales del arquitecto</h3>
+
+<p>El kit reconoce explícitamente que ciertas acciones son humanas, no
+automatizables hoy. Documentarlas reduce fricción cognitiva:</p>
+
+<ul>
+  <li><strong>Pausar al ejecutor</strong>: vía botón en el sitio web del proveedor del
+ejecutor (no vía label de GitHub).</li>
+  <li><strong>Aprobar documentación inicial</strong>: aplicar <code class="language-plaintext highlighter-rouge">architect-approved</code> a
+mano sobre N1, N2 (par <code class="language-plaintext highlighter-rouge">.md</code> + script), ADRs base tras la
+auditoría manual con D+G.</li>
+  <li><strong>Subir documentación inicial al repo</strong>: push manual a <code class="language-plaintext highlighter-rouge">main</code> por el
+arquitecto.</li>
+  <li><strong>Ejecutar el script bash</strong> de creación de Issues hijos del bloque
+aprobado.</li>
+  <li><strong>Crear el <code class="language-plaintext highlighter-rouge">.zip</code></strong> (para O) o el <code class="language-plaintext highlighter-rouge">.md</code> concatenado (para D) para
+revisión de épica, vía script de <code class="language-plaintext highlighter-rouge">tools/</code>.</li>
+  <li><strong>Comparar las dos auditorías</strong> (O y D) si invocó a ambas en la
+revisión de épica.</li>
+  <li><strong>Añadir Issue de corrección</strong> a épicas anteriores cuando aplique
+(las épicas no se cierran).</li>
+  <li><strong>Aplicar <code class="language-plaintext highlighter-rouge">architect-approved</code></strong> manualmente cuando un PR de
+arquitecto modifique el scaffold de tests (Vía 1 de §9.5 del
+documento de DeepSeek).</li>
+  <li><strong>Crear, ejecutar, fusionar Issues a mano</strong> en casos raros (Issue
+legacy, decisión puntual del arquitecto). En estos casos el flujo
+automatizado no aplica; el arquitecto opera como ejecutor humano.</li>
+</ul>
+
+<h3 id="116-modelo-de-tests-rojos-pre-cargados">11.6 Modelo de tests rojos pre-cargados</h3>
+
+<p>Este modelo es la materialización de P8 (inmutabilidad de los
+contratos por el ejecutor) y de C16 (cero divergencia entre fuente de
+verdad y artefacto). Sustituye al modelo de v1.1 basado en directorio
+<code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code> + manifiesto de hashes per-épica.</p>
+
+<p><strong>Concepto.</strong> Cada Issue del backlog contiene en su body una sección
+<code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code> con bloques de código fenced que
+declaran lenguaje y ruta de destino. Esta sección es la <strong>fuente de
+verdad</strong> de los tests del Issue. El workflow
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> parsea esta sección y materializa los
+archivos en disco como <strong>primer commit de la rama del Issue</strong>
+(subject: <code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>).</p>
+
+<p><strong>Inmutabilidad.</strong> El check <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code> (en el job
+governance del orquestador) verifica blob SHA per-archivo del commit
+scaffold contra HEAD del PR. Modificar, eliminar o renombrar archivos
+del scaffold falla el check. <strong>El ejecutor puede</strong>:</p>
+
+<ul>
+  <li>Agregar tests adicionales en archivos nuevos (no parte del scaffold).</li>
+  <li>Modificar cualquier archivo fuera del scaffold (código de
+producción, otros tests preexistentes en <code class="language-plaintext highlighter-rouge">main</code>).</li>
+</ul>
+
+<p><strong>El ejecutor no puede modificar archivos del scaffold.</strong> Si los
+tests están mal especificados, ver §9.5 del documento de DeepSeek
+para las dos vías legítimas de modificación.</p>
+
+<p><strong>Auto-desactivación.</strong> Si el primer commit de la rama no es scaffold
+(subject distinto al regex), el check pasa con exit 0. Esto cubre:</p>
+
+<ul>
+  <li>Issues sin tests pre-cargados (docs, chore puro). El workflow crea
+la rama con commit vacío <code class="language-plaintext highlighter-rouge">chore(EXX-NNN): initialize branch for #N</code>.</li>
+  <li>Ramas creadas a mano por el arquitecto fuera del flujo automatizado.</li>
+  <li>Issues legacy creados antes de adoptar el modelo.</li>
+</ul>
+
+<p><strong>Sin manifiestos.</strong> No hay archivos de hash que mantener
+sincronizados. La inmutabilidad vive en la historia de git mismo
+(blob SHA del commit scaffold).</p>
+
+<p>Ver <code class="language-plaintext highlighter-rouge">DeepSeek_Auditor_Integration_v1_2.md §9</code> para mecánica completa
+del check.</p>
+
+<hr />
+
+<h2 id="12-lo-que-no-está-en-el-kit-base">12. Lo que NO está en el kit base</h2>
+
+<p>Para mantener la separación entre estructura y plataforma, las
+siguientes categorías se excluyen explícitamente del kit base. Cada
+kit derivado las añade:</p>
+
+<ul>
+  <li><strong>Manifiestos del stack</strong> (pyproject.toml, pubspec.yaml,
+package.json, Cargo.toml, go.mod, etc.).</li>
+  <li><strong>Herramientas de lint y formato</strong> específicas.</li>
+  <li><strong>Verificadores de tipos</strong> específicos.</li>
+  <li><strong>Frameworks de tests</strong> específicos.</li>
+  <li><strong>Reglas de arquitectura por capas</strong> específicas.</li>
+  <li><strong>Dockerfiles, docker-compose, manifiestos de Kubernetes,
+configuración de Terraform.</strong></li>
+  <li><strong>Schemas de base de datos, migraciones, ORMs.</strong></li>
+  <li><strong>Estrategias de autenticación, configuración de secrets en
+runtime.</strong></li>
+  <li><strong>Pipelines de release.</strong></li>
+</ul>
+
+<hr />
+
+<h2 id="13-adaptación-a-plataforma">13. Adaptación a plataforma</h2>
+
+<p>Un kit por plataforma se deriva de este documento añadiendo,
+exclusivamente:</p>
+
+<ol>
+  <li><strong>Manifiestos del stack</strong> con versiones pineadas al momento del
+bootstrap del kit.</li>
+  <li><strong>Scripts de validación específicos</strong> (light y full) que ejecuten
+las herramientas concretas del stack pero respeten la interfaz
+canónica (los nombres de los scripts, sus argumentos, sus códigos
+de salida).</li>
+  <li><strong>El workflow CI</strong> del stack, que se reduce a invocar el script
+completo (cumpliendo P2 mecánicamente).</li>
+  <li><strong>AGENTS.md específico del stack</strong> con prohibiciones y convenciones
+propias del lenguaje y los scopes Conventional Commits enumerados.</li>
+  <li><strong>Documentación de adaptación</strong>: una sección en el README del kit
+derivado que explica qué se debe podar al adaptar el kit a un
+proyecto concreto (porque el kit derivado suele incluir más
+herramientas de las que un proyecto típico necesita; ver §14).</li>
+</ol>
+
+<p>Lo que un kit por plataforma <strong>no puede hacer</strong>:</p>
+
+<ul>
+  <li>Renombrar workflows del orquestador.</li>
+  <li>Modificar el conjunto de labels canónicas (puede añadir, no quitar
+ni renombrar).</li>
+  <li>Saltarse gates del §7.</li>
+  <li>Mover archivos canónicos del §8 a otras ubicaciones sin documentar
+la traducción.</li>
+  <li>Reducir el alcance de las convenciones inviolables del §10.</li>
+</ul>
+
+<hr />
+
+<h2 id="14-filosofía-de-sobre-equipamiento-adaptativo">14. Filosofía de sobre-equipamiento adaptativo</h2>
+
+<p>Los kits derivados pueden (y suelen) ser deliberadamente más completos
+que lo que un proyecto típico necesita. La razón es asimétrica:</p>
+
+<ul>
+  <li><strong>Añadir herramientas más tarde</strong> requiere decisiones de diseño,
+PRs, justificaciones, y suele postergarse hasta que el problema
+duele.</li>
+  <li><strong>Quitar herramientas al adaptar</strong> es trivial: el LLM que adapta el
+kit al proyecto real revisa el caso, identifica lo que no aplica, y
+hace un commit de bootstrap inicial podando lo innecesario.</li>
+</ul>
+
+<p>Cada kit derivado debe incluir, en su AGENTS.md, una sección titulada
+“Para la LLM que adapta este kit a un proyecto nuevo” con una lista
+explícita de decisiones que el adaptador debe tomar antes de la
+primera tarea de producto. Esto evita el doble extremo del “lienzo en
+blanco” (decidir todo desde cero) y del “monolito rígido” (cargar con
+herramientas innecesarias para siempre).</p>
+
+<hr />
+
+<h2 id="15-mantenimiento-y-evolución-del-kit">15. Mantenimiento y evolución del kit</h2>
+
+<h3 id="151-versionado">15.1 Versionado</h3>
+
+<p>El kit base sigue SemVer. Los kits derivados versionan
+independientemente pero declaran explícitamente la versión del kit
+base de la que derivan.</p>
+
+<h3 id="152-política-de-breaking-changes">15.2 Política de breaking changes</h3>
+
+<p>Un cambio en el kit base que requiera modificación de los kits
+derivados se considera breaking change y exige bump de major.</p>
+
+<p>Cambios aditivos (nuevas labels opcionales, nuevos workflows
+opcionales, nuevas convenciones recomendadas pero no obligatorias) son
+minor.</p>
+
+<p><strong>Nota sobre v1.2</strong>: estrictamente, algunos cambios listados en §0
+calificarían como breaking (renombre de label, eliminación de
+directorios canónicos, reemplazo del modelo de inmutabilidad). Se
+mantiene en v1.2 (no v2.0) porque no existen aún kits derivados
+completos que el bump pueda romper, y los proyectos en operación
+migran fácil (buscar y reemplazar la label, eliminar el directorio de
+hashes, adoptar el nuevo workflow). Si emerge un segundo kit derivado
+a partir de aquí, el próximo cambio estructural sí ameritará major
+bump.</p>
+
+<h3 id="153-actualización-en-proyectos-existentes">15.3 Actualización en proyectos existentes</h3>
+
+<p>Al actualizar el kit en un proyecto vivo:</p>
+
+<ol>
+  <li>Reemplazar los workflows base.</li>
+  <li><strong>No</strong> reemplazar el workflow CI específico de stack (es del
+proyecto).</li>
+  <li>Comparar el manifiesto de labels contra el actual; labels nuevas
+son aditivas, labels removidas o renombradas requieren migración.</li>
+  <li>Re-ejecutar el script de bootstrap de labels.</li>
+  <li>Para el cambio v1.1 → v1.2 específicamente:
+    <ul>
+      <li>Buscar y reemplazar <code class="language-plaintext highlighter-rouge">requires-architect-review</code> →
+<code class="language-plaintext highlighter-rouge">requires-human-review</code> en todo el repo.</li>
+      <li>Eliminar <code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/</code> si existía.</li>
+      <li>Adoptar <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> y
+<code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code> para los Issues nuevos; los
+anteriores ya cerrados no requieren retrofit.</li>
+      <li>Actualizar el AGENTS.md del proyecto con la regla nueva sobre
+rama declarada en el Issue.</li>
+    </ul>
+  </li>
+  <li>Revisar el CHANGELOG del kit para identificar otros breaking
+changes.</li>
+</ol>
+
+<h3 id="154-quién-mantiene-el-kit">15.4 Quién mantiene el kit</h3>
+
+<p>El kit base es responsabilidad del arquitecto del enjambre, no de
+ningún proyecto individual. Los hallazgos de un proyecto que ameriten
+cambios al kit se proponen como issues contra el repositorio del kit
+base, no se hackean en el proyecto y luego se “olvidan” propagar.</p>
+
+<hr />
+
+<h2 id="16-riesgos-residuales-aceptados">16. Riesgos residuales aceptados</h2>
+
+<p>El kit no pretende resolver todos los problemas posibles. Los
+siguientes riesgos son conocidos y se aceptan conscientemente:</p>
+
+<p><strong>R1. Sustrato compartido entre ejecutor y co-auditor de la misma
+familia.</strong> Mitigación: auditoría dual manual D+G en documentación
+inicial (familias distintas), y revisión de épica con O (y
+opcionalmente D) en chat cuando el arquitecto la invoque. <strong>G no
+audita PR</strong> para no auditar su propio código. Telemetría debe
+detectar si el riesgo se materializa en patrones consistentes.</p>
+
+<p><strong>R2. Imposibilidad de garantizar mediante código que un agente LLM
+nunca razone fuera de su scope.</strong> Mitigación: gates mecánicos (path
+protection, inmutabilidad de scaffold, presupuesto de tamaño de PR)
+acotan el daño potencial. El kit es membrana, no jaula.</p>
+
+<p><strong>R3. Costo de tokens variable por la naturaleza no determinista de
+los modelos.</strong> Mitigación: telemetría por Issue, presupuesto explícito
+por auditor, y revisión cuando el patrón observado supere el rango
+habitual.</p>
+
+<p><strong>R4. Auditor LLM que se sobre-corrige tras feedback.</strong> Mitigación:
+prompt estructurado que fuerza distinguir críticas técnicas
+independientes del contexto factual; auditoría dual manual en
+documentación inicial para que un sobre-corregido no determine el
+veredicto.</p>
+
+<p><strong>R5. Drift entre el kit base y los kits derivados.</strong> Mitigación:
+versionado explícito, política de breaking changes, auditoría
+periódica del conjunto de kits derivados contra el kit base.</p>
+
+<p><strong>R6. Falsos negativos del auditor LLM (PRs malos que pasan).</strong>
+Mitigación: G5 (CODEOWNERS) como red humana, G8 (revisión de épica
+con O y opcionalmente D) como recolección de casos, y telemetría para
+entrenar mejores prompts del auditor sobre los falsos negativos
+detectados.</p>
+
+<p><strong>R7. Falsos positivos del auditor LLM (PRs buenos rechazados).</strong>
+Mitigación: telemetría explícita de tasa de falsos positivos; ajuste
+del prompt si supera umbral; escalación a humano si el ejecutor no
+puede resolver tras N intentos.</p>
+
+<p><strong>R8. Acciones manuales que el arquitecto olvida.</strong> Mitigación: §11.5
+lista explícita; con el tiempo, automatizar las que tengan API
+disponible.</p>
+
+<p><strong>R9. Tests pre-cargados mal especificados por O.</strong> El diseñador LLM
+podría escribir tests que pasen trivialmente o que validen algo
+distinto al requisito en prosa. Mitigación: auditoría manual D+G del
+N2 (par <code class="language-plaintext highlighter-rouge">.md</code> + script) antes de subir Issues; el supervisor revisa
+los tests propuestos contra los criterios de aceptación. Si el N2 ya
+está validado por tres LLMs distintos (O lo crea, D y G lo auditan)
+el riesgo es bajo pero no nulo; cuando se materializa, suele
+detectarse en la revisión de épica con O.</p>
+
+<hr />
+
+<h2 id="17-resumen-ejecutivo">17. Resumen ejecutivo</h2>
+
+<p>Un starter_kit es una infraestructura de control, no una plantilla. Su
+trabajo es materializar mecánicamente las decisiones arquitectónicas y
+los principios de SoD del enjambre LLM, de manera que las garantías de
+calidad no dependan de que humanos o agentes recuerden seguirlas.</p>
+
+<p>El kit base v1.2, agnóstico de plataforma, define:</p>
+
+<ul>
+  <li>Una <strong>topología de workflows</strong> con punto de entrada único, gate de
+convergencia único, y validadores enchufables. Incluye
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> que materializa los tests rojos
+pre-cargados como primer commit de la rama del Issue.</li>
+  <li>Un <strong>vocabulario de labels</strong> con semántica activa que los workflows
+leen y escriben. Las labels de prioridad son decorativas (asignador
+FIFO). <code class="language-plaintext highlighter-rouge">requires-human-review</code> reemplaza a
+<code class="language-plaintext highlighter-rouge">requires-architect-review</code>.</li>
+  <li>Ocho <strong>gates de calidad</strong> inviolables. G4 cambió de hash per-épica
+a blob SHA per-archivo del commit scaffold.</li>
+  <li>Diecisiete <strong>convenciones inviolables</strong>, incluyendo: el ejecutor
+nunca edita el Issue (C12), la última operación es la señal (C13),
+auto-desactivación por convención de mensaje de commit (C14), tests
+sobre las herramientas del kit (C15), cero divergencia entre
+fuente de verdad y artefacto (C16), PAT del arquitecto como firma
+de procedencia (C17).</li>
+  <li>Una <strong>integración con el enjambre LLM</strong> organizada por roles
+(arquitecto, co-auditores en chat manual, ejecutor, auditor de PR,
+revisor opcional de épica), con frontera explícita entre Diseño
+(manual en chat) y Ejecución (automatizado en GitHub Actions). <strong>G
+no audita PR.</strong></li>
+  <li>Un <strong>modelo de tests rojos pre-cargados</strong> donde la fuente de verdad
+es el body del Issue, materializada por workflow, verificada por
+blob SHA per-archivo. Reemplaza el modelo de manifiesto de hashes
+per-épica de v1.1.</li>
+  <li><strong>Defensas mecánicas</strong> contra los modos de fallo conocidos del
+ejecutor.</li>
+  <li><strong>Patrones operacionales</strong> rescatados del primer proyecto en
+operación real: mensajes-instrucción embebidos en errores de CI,
+complejidad declarada como gate, lista exhaustiva de paths
+protegidos (Apéndice A), <code class="language-plaintext highlighter-rouge">--only</code> y <code class="language-plaintext highlighter-rouge">--continue</code> en scripts,
+bootstrap y codegen explícitos, <code class="language-plaintext highlighter-rouge">project_manifest.json</code> canónico,
+un script por bloque, DoD como checkboxes editables, tests sobre
+las herramientas del kit.</li>
+  <li>Una <strong>filosofía de sobre-equipamiento adaptativo</strong> que delega al LLM
+adaptador la poda de herramientas innecesarias.</li>
+</ul>
+
+<p>Lo que el kit deja a cada plataforma: manifiestos, herramientas
+concretas, configuración de tests por framework, infraestructura de
+despliegue.</p>
+
+<p>Este documento es el contrato. Las versiones específicas por
+plataforma derivan de él. Cualquier ambigüedad se resuelve contra este
+documento, no contra los kits derivados.</p>
+
+<hr />
+
+<h2 id="apéndice-a--lista-de-referencia-de-protected_patterns-multi-stack">Apéndice A — Lista de referencia de <code class="language-plaintext highlighter-rouge">PROTECTED_PATTERNS</code> multi-stack</h2>
+
+<p>Esta lista de patrones de path se usa en el workflow de etiquetado de
+PR (<code class="language-plaintext highlighter-rouge">pr-labels.yml</code> o equivalente) para detectar automáticamente PRs
+que tocan zonas sensibles y aplicarles <code class="language-plaintext highlighter-rouge">requires-human-review</code>.</p>
+
+<p>Es <strong>lista de referencia</strong>: cada kit derivado conserva los patrones
+relevantes a su stack y elimina los demás (o los marca como
+comentario). La regla “añadir patrones es fácil; eliminarlos requiere
+justificación” se aplica.</p>
+
+<pre><code class="language-regex"># --- Infraestructura del kit ---
+^\.github/
+^tools/ci/
+^lefthook\.yml$
+^\.pre-commit-config\.yaml$
+
+# --- Manifiestos de stack (mantener los relevantes) ---
+^pyproject\.toml$
+^uv\.lock$
+^requirements.*\.txt$
+^pubspec\.yaml$
+^pubspec\.lock$
+^melos\.yaml$
+^analysis_options\.yaml$
+^package\.json$
+^pnpm-lock\.yaml$
+^yarn\.lock$
+^package-lock\.json$
+^Cargo\.toml$
+^Cargo\.lock$
+^go\.mod$
+^go\.sum$
+
+# --- Infraestructura y deployment ---
+^Dockerfile.*$
+^docker-compose
+^infra/
+^terraform/
+^k8s/
+^helm/
+
+# --- Base de datos y migraciones ---
+^alembic/versions/
+^prisma/schema\.prisma$
+^db/migrations/
+
+# --- Reglas de seguridad de servicios cloud ---
+^firestore\.rules$
+^storage\.rules$
+
+# --- Contratos arquitectónicos del proyecto ---
+^docs/adr/
+^docs/backlog/
+</code></pre>
+
+<p><strong>Notas de uso</strong>:</p>
+
+<ul>
+  <li>Para añadir o eliminar patrones, editar la lista en el workflow real
+del proyecto (<code class="language-plaintext highlighter-rouge">pr-labels.yml</code>). Esta lista vive aquí como
+referencia, no como configuración activa.</li>
+  <li>El conjunto debe mantenerse <strong>alineado con <code class="language-plaintext highlighter-rouge">.github/CODEOWNERS</code></strong>:
+todo path en CODEOWNERS debería estar reflejado aquí, y viceversa.</li>
+  <li>Para stacks específicos (Flutter monorepo con Melos, Node monorepo
+con pnpm, Python monorepo con uv), añadir las rutas de manifiestos
+internos (<code class="language-plaintext highlighter-rouge">apps/*/pubspec.yaml</code>, <code class="language-plaintext highlighter-rouge">packages/*/package.json</code>, etc.).</li>
+</ul>
+
+<hr />
+
+<h2 id="apéndice-b--patrones-operacionales-destacables">Apéndice B — Patrones operacionales destacables</h2>
+
+<p>Patrones observados en el primer proyecto real del enjambre que valen
+la pena ser nombrados explícitamente y que no caben en otras
+secciones:</p>
+
+<p><strong>B1. Concurrencia diferenciada por workflow.</strong> El orquestador del PR
+cancela superseded runs del mismo PR (<code class="language-plaintext highlighter-rouge">cancel-in-progress: true</code>); el
+workflow de auto-merge <strong>nunca</strong> cancela in-flight
+(<code class="language-plaintext highlighter-rouge">cancel-in-progress: false</code>). Cancelar un merge en vuelo deja el
+sistema en estado inconsistente; cancelar un orquestador no.</p>
+
+<p><strong>B2. <code class="language-plaintext highlighter-rouge">sleep</code> deliberado antes de buscar siguiente Issue.</strong> Tras
+mergear un PR, GitHub puede no haber indexado el cierre del Issue
+asociado todavía cuando preguntas por Issues abiertos. Un <code class="language-plaintext highlighter-rouge">sleep 10</code>
+antes del <code class="language-plaintext highlighter-rouge">gh issue list</code> reduce drásticamente los race conditions
+observados. Es “wait for eventual consistency”.</p>
+
+<p><strong>B3. Fallback en cascada para detectar Issue cerrado por un PR.</strong>
+Estrategia 1: parse <code class="language-plaintext highlighter-rouge">Closes/Fixes/Resolves #N</code> del body del PR.
+Estrategia 2 (fallback): último Issue con label de ejecutor cerrado
+recientemente. Estrategia 3 (warning): no se pudo determinar; pasa al
+asignador FIFO sin Issue específico.</p>
+
+<p><strong>B4. Idempotencia de comentarios via marca HTML.</strong> Cuando un
+workflow comenta al PR (auditor LLM, recordatorios), usa marca HTML
+identificable (<code class="language-plaintext highlighter-rouge">&lt;!-- workflow-id-comment --&gt;</code>). En cada ejecución,
+busca el comentario por marca y lo actualiza si existe; lo crea si
+no. Evita acumulación de comentarios en PRs con muchas iteraciones.</p>
+
+<p><strong>B5. Workflow de preparación de rama via PAT, no <code class="language-plaintext highlighter-rouge">GITHUB_TOKEN</code>.</strong>
+El push de la rama del workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> necesita
+disparar workflows downstream cuando el ejecutor abra PR. El
+<code class="language-plaintext highlighter-rouge">GITHUB_TOKEN</code> por defecto <strong>no dispara workflows desde sus propios
+pushes</strong>; un PAT sí. Combinado con C17, el PAT del arquitecto
+resuelve esto.</p>
+
+<p><strong>B6. Cero comentarios redundantes al Issue.</strong> Si el body del Issue
+ya declara la rama imperativamente (<code class="language-plaintext highlighter-rouge">## 🌿 Rama asignada: ...</code>), el
+workflow no debe comentar al Issue “tu rama está lista”. Es
+redundante para el ejecutor. La señal operacional para el supervisor
+queda en el log de Actions; el ejecutor lee el body.</p>
+
+<p><strong>B7. Helpers de CI con fallback inline.</strong> Los scripts <code class="language-plaintext highlighter-rouge">light.sh</code> y
+<code class="language-plaintext highlighter-rouge">full.sh</code> cargan <code class="language-plaintext highlighter-rouge">lib/_common.sh</code> si existe, y si no, definen las
+mismas funciones localmente. Esto permite ejecutar el script en
+aislamiento (debugging, copia-pega a otro repo) sin dependencias
+implícitas.</p>
+
+<p><strong>B8. Bootstrap y codegen como pasos previos del CI.</strong> El CI corre
+contra checkout limpio. Si el stack tiene código generado
+(<code class="language-plaintext highlighter-rouge">build_runner</code>, Prisma generate, gRPC stubs), el script completo
+ejecuta primero el bootstrap y luego el codegen antes de
+format/analyze/test. <strong>Nunca asumir que el código generado está
+commiteado.</strong> Si el proyecto commite el código generado por
+conveniencia, el CI igual lo regenera y compara (otro modo de detectar
+drift).</p>

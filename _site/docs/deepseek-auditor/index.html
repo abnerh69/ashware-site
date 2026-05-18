@@ -1,0 +1,767 @@
+<h1 id="deepseek-auditor-integration--v12">DeepSeek Auditor Integration — v1.2</h1>
+
+<blockquote>
+  <p>Especificación técnica de integración de DeepSeek (<strong>D</strong>) como
+auditor de PR en el enjambre LLM del Proyecto de Proyectos.
+Complementa al <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md</code> con las decisiones
+operacionales específicas de la API de DeepSeek y el workflow de
+GitHub Actions que la invoca.</p>
+
+  <p><strong>Versión:</strong> 1.2 · <strong>Fecha:</strong> 18 de mayo de 2026
+<strong>Reemplaza:</strong> v1.1 (cambia §9 completa: el modelo de inmutabilidad
+pasa de hash determinístico per-épica a blob SHA per-archivo del
+commit scaffold de tests pre-cargados)
+<strong>Documentos hermanos:</strong> <code class="language-plaintext highlighter-rouge">General_Starter_Kit_v1_2.md</code>,
+<code class="language-plaintext highlighter-rouge">Proyecto_de_Proyectos_v1_6.md</code>,
+<code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>,
+<code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code>
+<strong>Audiencia:</strong> la LLM (o el humano) que implementa el workflow real
+del kit.</p>
+</blockquote>
+
+<hr />
+
+<h2 id="0-cambios-desde-v11">0. Cambios desde v1.1</h2>
+
+<p><strong>Reemplazo del modelo de inmutabilidad de tests.</strong> La v1.1
+prescribía hash determinístico per-épica calculado con <code class="language-plaintext highlighter-rouge">shasum -a 256</code>
+sobre los archivos de <code class="language-plaintext highlighter-rouge">tests/contract/&lt;epic&gt;/</code>, registrado en
+<code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/epic-NNN.txt</code>. Operacionalmente fue
+más fricción que beneficio: mantener manifiestos de hashes
+sincronizados con cambios legítimos era complicado y los tests
+ubicados fuera del árbol natural del código eran menos descubribles.</p>
+
+<p>El v1.2 adopta el modelo de <strong>tests rojos pre-cargados</strong> validado en
+operación real:</p>
+
+<ul>
+  <li>Los tests viven junto al código que validan (ruta natural del
+proyecto, no en un directorio especial).</li>
+  <li>La fuente de verdad es el body del Issue, sección
+<code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>.</li>
+  <li>Un workflow (<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code>) materializa los tests como
+primer commit de la rama del Issue (subject:
+<code class="language-plaintext highlighter-rouge">test(EXX-NNN): scaffold red tests</code>).</li>
+  <li>La inmutabilidad se verifica con <strong>blob SHA per-archivo</strong> comparando
+el commit scaffold contra HEAD del PR.</li>
+  <li>El check se auto-desactiva cuando el primer commit de la rama no es
+un scaffold (Issues sin tests, ramas creadas a mano).</li>
+</ul>
+
+<p>Otros cambios:</p>
+
+<ol>
+  <li><strong>Convención de ubicación de tests eliminada como prescripción del
+kit.</strong> Cada proyecto decide dónde viven sus tests; el scaffold
+declara las rutas explícitamente. La inmutabilidad ya no depende
+de un directorio canónico.</li>
+  <li><strong>Manifiesto de hashes per-épica eliminado.</strong> No hay archivos
+<code class="language-plaintext highlighter-rouge">epic-NNN.txt</code> que mantener; los blob SHAs viven en git mismo.</li>
+  <li><strong>§9 reescrita completa.</strong> El resto del documento (cliente API,
+prefix caching, streaming, telemetría, parámetros canónicos, rate
+limiting, workflow <code class="language-plaintext highlighter-rouge">audit-pr.yml</code>) no cambia respecto a v1.1.</li>
+</ol>
+
+<hr />
+
+<h2 id="1-propósito">1. Propósito</h2>
+
+<p>Este documento define <strong>cómo</strong> se llama a D desde el workflow
+<code class="language-plaintext highlighter-rouge">audit-pr.yml</code>, no <strong>qué</strong> decisiones audita (eso está en el v1.6).
+Cubre el cliente API, las optimizaciones obligatorias, los parámetros,
+y los mecanismos de inmutabilidad de tests pre-cargados.</p>
+
+<p>Sin estas decisiones técnicas concretadas, el <code class="language-plaintext highlighter-rouge">audit/pass</code>, el
+<code class="language-plaintext highlighter-rouge">audit/fail</code>, y el bloqueo por modificación del scaffold de tests
+son aspiracionales. Con ellas, son enforceables.</p>
+
+<hr />
+
+<h2 id="2-modelo-y-rol-asignado">2. Modelo y rol asignado</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rol</th>
+      <th>Modelo canónico</th>
+      <th>Usado en</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Auditor de PR</td>
+      <td><code class="language-plaintext highlighter-rouge">deepseek-v4-flash</code></td>
+      <td>Workflow <code class="language-plaintext highlighter-rouge">audit-pr.yml</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Restricción importante</strong>: los aliases legacy <code class="language-plaintext highlighter-rouge">deepseek-chat</code> y
+<code class="language-plaintext highlighter-rouge">deepseek-reasoner</code> se retiran el 24 de julio de 2026. El workflow del
+kit debe usar el nombre canónico (<code class="language-plaintext highlighter-rouge">deepseek-v4-flash</code>) desde el día 1.
+Un check de governance puede grep <code class="language-plaintext highlighter-rouge">deepseek-chat</code> o <code class="language-plaintext highlighter-rouge">deepseek-reasoner</code>
+en workflows y fallar el CI.</p>
+
+<p><strong>Importante sobre el rol de D</strong>: D <strong>solo</strong> audita PR (vía API).
+G (Gemini) que actúa como ejecutor (Jules) <strong>NO</strong> audita PR — codifica.
+La co-auditoría de documentación inicial (D + G) ocurre en chat manual,
+no en workflows. Ver §11 del Starter Kit v1.2.</p>
+
+<hr />
+
+<h2 id="3-cliente-api">3. Cliente API</h2>
+
+<h3 id="31-endpoint-y-autenticación">3.1 Endpoint y autenticación</h3>
+
+<p>D expone una API OpenAI-compatible. No requiere SDK separado. Usar el
+cliente oficial de OpenAI apuntando al endpoint de D es suficiente y
+reduce dependencias.</p>
+
+<ul>
+  <li><strong>Endpoint base</strong>: <code class="language-plaintext highlighter-rouge">https://api.deepseek.com/v1</code></li>
+  <li><strong>Autenticación</strong>: API key vía variable de entorno
+<code class="language-plaintext highlighter-rouge">DEEPSEEK_API_KEY</code> (o equivalente). Nunca hardcoded.</li>
+  <li><strong>Secret en GitHub</strong>: cada repositorio del portafolio declara
+<code class="language-plaintext highlighter-rouge">DEEPSEEK_API_KEY</code> en sus secrets de Actions. Política: una sola key
+compartida (no key por proyecto) para simplificar rotación.</li>
+</ul>
+
+<h3 id="32-reutilización-de-cliente">3.2 Reutilización de cliente</h3>
+
+<p>Los scripts y workflows que hacen múltiples llamadas en la misma
+sesión deben reutilizar la instancia del cliente HTTP. Crear una
+sesión por llamada multiplica innecesariamente la latencia de conexión
+y rompe el patrón de connection pooling esperado.</p>
+
+<p>En contextos efímeros como steps de GitHub Actions, esta regla se
+aplica dentro del step (no entre steps).</p>
+
+<hr />
+
+<h2 id="4-prefix-caching-la-optimización-crítica">4. Prefix caching: la optimización crítica</h2>
+
+<p>D ofrece <strong>descuento del 90-98% en cache hits</strong> sobre el prefijo común
+de los prompts. Esta es la diferencia entre que cada auditoría de PR
+cueste ~$0.001 o ~$0.05. En un portafolio activo, esa diferencia
+compone significativamente si no se aprovecha. No es opcional.</p>
+
+<h3 id="41-qué-se-cachea-debe-ser-byte-idéntico-entre-llamadas">4.1 Qué se cachea (debe ser byte-idéntico entre llamadas)</h3>
+
+<ul>
+  <li><strong>System prompt</strong> del auditor de PR (fijo).</li>
+  <li><strong>AGENTS.md</strong> del repositorio donde se hace la auditoría.</li>
+  <li><strong>ADRs base</strong> (los que no cambian entre PRs de la misma épica).</li>
+  <li><strong>Schemas de tools</strong> (si se usa tool calling).</li>
+</ul>
+
+<h3 id="42-reglas-inviolables-del-prefijo">4.2 Reglas inviolables del prefijo</h3>
+
+<p>El prefijo cacheado debe ser <strong>byte-idéntico</strong> entre llamadas.
+Cualquier variación, por trivial que parezca, rompe el cache y
+multiplica el costo por 50.</p>
+
+<p><strong>Anti-patrones que rompen el cache</strong>:</p>
+
+<ul>
+  <li>Timestamps en system prompts (<code class="language-plaintext highlighter-rouge">"Auditoría iniciada: 2026-05-14..."</code>).</li>
+  <li>IDs de sesión o de PR en el system prompt (deben ir en el user
+message, no en el system).</li>
+  <li>JSON serializado sin <code class="language-plaintext highlighter-rouge">sort_keys</code> (el orden de claves no está
+garantizado).</li>
+  <li>Concatenaciones con espacios o saltos de línea variables.</li>
+  <li>Cambios cosméticos al system prompt durante calibración (cada cambio
+invalida todo el cache acumulado).</li>
+</ul>
+
+<p><strong>Patrones correctos</strong>:</p>
+
+<ul>
+  <li>System prompt como string constante, versionado en el repo del kit
+(no construido dinámicamente).</li>
+  <li>IDs y contexto variable en el user message.</li>
+  <li>JSON serializado siempre con <code class="language-plaintext highlighter-rouge">sort_keys=True</code> o equivalente
+determinístico.</li>
+  <li>Calibración de prompts en batches: si cambia el prompt, se acepta un
+período de cache miss y se documenta en ADR.</li>
+</ul>
+
+<h3 id="43-qué-no-rompe-el-cache">4.3 Qué NO rompe el cache</h3>
+
+<ul>
+  <li>Añadir nuevos turns de conversación (append-only).</li>
+  <li>Cambiar entre streaming y non-streaming en distintas llamadas (mismo
+prefijo se cachea igual).</li>
+  <li>Modificar el contenido del último mensaje user (lo único que no está
+en el prefijo).</li>
+</ul>
+
+<h3 id="44-verificación-del-cache">4.4 Verificación del cache</h3>
+
+<p>D no expone directamente “cache hit” en la respuesta. La verificación
+se hace inferencialmente: una llamada con prefijo nuevo a 5000 tokens
+cuesta ~$0.001 (cache miss) la primera vez, ~$0.00005 (cache hit) las
+siguientes. Si las llamadas repetidas mantienen costo alto, el cache
+no está hitteando y algo en el prefijo varía.</p>
+
+<p><strong>Métrica operacional</strong>: relación entre <code class="language-plaintext highlighter-rouge">prompt_tokens</code> reportado y
+costo esperado. Si en operación se observa cache miss rate &gt;20%
+sostenido, hay que auditar el código que construye los prompts.</p>
+
+<h3 id="45-ttl-del-cache">4.5 TTL del cache</h3>
+
+<p>El cache de prefijos en D tiene TTL de minutos, no horas. En la
+práctica, para una sesión de auditoría continua (varios PRs seguidos
+en el mismo repo) el cache se mantiene. Si entre auditorías pasa mucho
+tiempo, la primera llamada tras la pausa será cache miss.</p>
+
+<p>Esto es aceptable en operación normal: la mayoría de proyectos tienen
+ráfagas de PRs (J termina varios Issues seguidos) y luego pausas. La
+primera del lote paga miss, las siguientes hit.</p>
+
+<hr />
+
+<h2 id="5-streaming-y-telemetría">5. Streaming y telemetría</h2>
+
+<h3 id="51-recomendación">5.1 Recomendación</h3>
+
+<p><strong>Activar streaming en todas las llamadas a D</strong>, con
+<code class="language-plaintext highlighter-rouge">stream_options={"include_usage": True}</code>. Razones:</p>
+
+<ul>
+  <li>Primer token llega en ~300ms vs ~800ms non-streaming.</li>
+  <li>El último chunk contiene <code class="language-plaintext highlighter-rouge">usage</code> con <code class="language-plaintext highlighter-rouge">prompt_tokens</code>,
+<code class="language-plaintext highlighter-rouge">completion_tokens</code>, y <code class="language-plaintext highlighter-rouge">completion_tokens_details.reasoning_tokens</code>.</li>
+  <li><strong>Streaming no rompe el cache</strong> — el prefijo se cachea igual.</li>
+  <li>Telemetría granular sin llamada extra a la API.</li>
+</ul>
+
+<h3 id="52-estructura-del-último-chunk">5.2 Estructura del último chunk</h3>
+
+<p>El chunk final del stream (cuando <code class="language-plaintext highlighter-rouge">chunk.choices</code> está vacío) contiene
+el bloque <code class="language-plaintext highlighter-rouge">usage</code>:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">prompt_tokens</code>: input total. Útil para inferir cache hit/miss.</li>
+  <li><code class="language-plaintext highlighter-rouge">completion_tokens</code>: output total.</li>
+  <li><code class="language-plaintext highlighter-rouge">completion_tokens_details.reasoning_tokens</code>: tokens gastados en
+thinking mode (cero si thinking no está activo).</li>
+</ul>
+
+<h3 id="53-telemetría-health-signals">5.3 Telemetría health signals</h3>
+
+<p>Tres métricas operacionales que el workflow extrae del <code class="language-plaintext highlighter-rouge">usage</code> y
+publica en el comentario <code class="language-plaintext highlighter-rouge">[telemetry]</code> del PR:</p>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">reasoning_ratio = reasoning_tokens / completion_tokens</code></strong>:
+    <ul>
+      <li>Para auditor de PR sin thinking: debe ser 0.</li>
+      <li>Si supera 0 sostenido en auditoría de PR, hay un bug: el modelo
+está usando thinking cuando no se le pidió. Investigar
+configuración.</li>
+    </ul>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">cache_hit_ratio</code> inferido</strong>: si <code class="language-plaintext highlighter-rouge">prompt_tokens</code> reportado es
+consistentemente alto en costo, el cache no está hitteando. Si
+supera 20% miss rate sostenido, auditar la construcción de prompts.</p>
+  </li>
+  <li><strong><code class="language-plaintext highlighter-rouge">total_cost_per_audit</code></strong>: tope blando. Si excede el ceiling
+documentado, el workflow aplica <code class="language-plaintext highlighter-rouge">requires-human-review</code>
+automáticamente. Es señal de Issue mal definido o auditor en bucle.</li>
+</ul>
+
+<h3 id="54-keep-alive-del-servidor">5.4 Keep-alive del servidor</h3>
+
+<p>Bajo carga, D puede enviar líneas SSE como <code class="language-plaintext highlighter-rouge">: keep-alive</code> para
+mantener la conexión. El cliente debe ignorarlas (no parsearlas como
+contenido). El SDK oficial de OpenAI ya lo maneja.</p>
+
+<hr />
+
+<h2 id="6-thinking-mode">6. Thinking mode</h2>
+
+<p>Para auditor de PR con V4 Flash, <strong>thinking está desactivado</strong>. Diffs
+son acotados; thinking añade tokens sin valor proporcional.</p>
+
+<p>V4 Flash no soporta thinking mode; este punto es informativo para
+evitar configuraciones erróneas.</p>
+
+<hr />
+
+<h2 id="7-parámetros-canónicos">7. Parámetros canónicos</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Parámetro</th>
+      <th>Valor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">model</code></td>
+      <td><code class="language-plaintext highlighter-rouge">deepseek-v4-flash</code></td>
+    </tr>
+    <tr>
+      <td>thinking</td>
+      <td>desactivado (no soportado por Flash)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">temperature</code></td>
+      <td><code class="language-plaintext highlighter-rouge">0.0</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">max_tokens</code></td>
+      <td><code class="language-plaintext highlighter-rouge">8000</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stream</code></td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stream_options</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{"include_usage": true}</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><code class="language-plaintext highlighter-rouge">max_tokens</code> actúa como <strong>ceiling de costo</strong>: si el modelo se acerca
+al tope, se trunca. El workflow detecta truncación
+(<code class="language-plaintext highlighter-rouge">finish_reason == "length"</code>) y la marca como <code class="language-plaintext highlighter-rouge">audit/fail</code> con razón
+“respuesta truncada, prompt o scope incorrecto”.</p>
+
+<hr />
+
+<h2 id="8-rate-limiting-y-backoff">8. Rate limiting y backoff</h2>
+
+<p>D no publica límites fijos. En operación con varios proyectos en
+cartera, los códigos 429 pueden ocurrir bajo ráfagas (varios PRs
+cerrando simultáneamente).</p>
+
+<p><strong>Política de retry obligatoria</strong>:</p>
+
+<ul>
+  <li>Backoff exponencial: 2^attempt segundos.</li>
+  <li>Jitter: ±20% aleatorio sobre el wait.</li>
+  <li>Tope: 30 segundos por wait individual.</li>
+  <li>Máximo 3 reintentos.</li>
+  <li>Tras el tercer fallo, el workflow aplica <code class="language-plaintext highlighter-rouge">requires-human-review</code>
+al PR con razón “deepseek-rate-limit-exceeded” y sigue.</li>
+</ul>
+
+<p><strong>Circuit breaker cross-workflow</strong>: si en una ventana de 60 segundos
+más del 30% de llamadas D fallan en cualquier workflow del portafolio,
+se activa modo degradado: el orquestador deja de aplicar <code class="language-plaintext highlighter-rouge">audit/pass</code>
+automáticamente y marca todos los PRs nuevos como
+<code class="language-plaintext highlighter-rouge">requires-human-review</code>. Se resetea cuando una hora de operación
+normal restaura el ratio.</p>
+
+<hr />
+
+<h2 id="9-inmutabilidad-de-tests-pre-cargados">9. Inmutabilidad de tests pre-cargados</h2>
+
+<h3 id="91-modelo-conceptual">9.1 Modelo conceptual</h3>
+
+<p>La fuente de verdad de los tests de un Issue es <strong>el body del Issue</strong>,
+sección <code class="language-plaintext highlighter-rouge">### Tests rojos pre-cargados</code>. Esta sección contiene bloques
+de código fenced con tag de lenguaje <strong>y ruta de destino</strong>:</p>
+
+<div class="language-markdown highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">```</span><span class="nl">dart:packages/core_kit/test/models/unit_of_measure_test.dart
+</span><span class="sb">import 'package:test/test.dart';
+...</span>
+<span class="p">```</span>
+</code></pre></div></div>
+
+<p>El workflow <code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> (ver §10 de este documento y
+§5 del Starter Kit) parsea esta sección y materializa los archivos en
+disco como <strong>primer commit de la rama del Issue</strong>, con subject:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>test(EXX-NNN): scaffold red tests
+</code></pre></div></div>
+
+<p>Esos archivos son <strong>inmutables para el ejecutor</strong>: J puede agregar
+tests adicionales en archivos nuevos, modificar cualquier archivo
+fuera del scaffold (código de producción, otros tests preexistentes
+en <code class="language-plaintext highlighter-rouge">main</code>), pero <strong>no puede modificar, eliminar ni renombrar archivos
+del scaffold</strong>.</p>
+
+<h3 id="92-verificación-blob-sha-per-archivo">9.2 Verificación: blob SHA per-archivo</h3>
+
+<p>La inmutabilidad se verifica con git plumbing puro, no con la
+aplicación. Esto es rápido, determinista, y no requiere compilar
+nada.</p>
+
+<p>El script <code class="language-plaintext highlighter-rouge">tools/ci/check_test_immutability.sh</code> corre en el job
+governance del orquestador, en cada PR:</p>
+
+<ol>
+  <li>Calcula <code class="language-plaintext highlighter-rouge">merge-base</code> entre la rama del PR y <code class="language-plaintext highlighter-rouge">origin/main</code> (o la
+<code class="language-plaintext highlighter-rouge">base.ref</code> del PR si se pasa por variable de entorno <code class="language-plaintext highlighter-rouge">BASE_REF</code>).</li>
+  <li>Obtiene el primer commit de la rama tras el <code class="language-plaintext highlighter-rouge">merge-base</code>, siguiendo
+<code class="language-plaintext highlighter-rouge">--first-parent --reverse</code>.</li>
+  <li>Si el mensaje de ese commit <strong>no matchea</strong> el regex
+<code class="language-plaintext highlighter-rouge">^test\([eE][0-9]+-[0-9]+\): scaffold red tests$</code>, <strong>se
+auto-desactiva</strong> con un notice y exit 0. Esto cubre Issues sin
+tests pre-cargados (docs, chore puro, Issues legacy o creados a
+mano fuera del flujo).</li>
+  <li>Si matchea, lista los archivos que el commit tocó:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git diff --name-only &lt;SCAFFOLD_COMMIT&gt;^ &lt;SCAFFOLD_COMMIT&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>Para cada archivo, compara blob SHA entre el árbol del
+<code class="language-plaintext highlighter-rouge">SCAFFOLD_COMMIT</code> y el árbol de <code class="language-plaintext highlighter-rouge">HEAD</code>:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git ls-tree &lt;SCAFFOLD_COMMIT&gt; -- &lt;FILE&gt;  → SHA_scaffold
+git ls-tree HEAD -- &lt;FILE&gt;               → SHA_head
+</code></pre></div>    </div>
+  </li>
+  <li>Si algún <code class="language-plaintext highlighter-rouge">SHA_head</code> está vacío (archivo eliminado), o difiere de
+<code class="language-plaintext highlighter-rouge">SHA_scaffold</code> (archivo modificado), el script falla con exit 1
+citando el archivo y la regla violada.</li>
+</ol>
+
+<h3 id="93-por-qué-blob-sha-y-no-hash-de-contenido">9.3 Por qué blob SHA y no hash de contenido</h3>
+
+<p>Git ya calcula el blob SHA de cada archivo committeado. Reusarlo
+tiene ventajas:</p>
+
+<ul>
+  <li><strong>Cero código nuevo de hashing.</strong> La verificación es <code class="language-plaintext highlighter-rouge">git ls-tree</code>,
+trivial.</li>
+  <li><strong>Portabilidad garantizada.</strong> No depende de <code class="language-plaintext highlighter-rouge">shasum -a 256</code> ni
+<code class="language-plaintext highlighter-rouge">md5sum</code>; cualquier instalación de git lo provee idéntico en Linux,
+macOS, Windows.</li>
+  <li><strong>Determinismo por construcción.</strong> Dos archivos con contenido
+idéntico tienen el mismo blob SHA en cualquier máquina.</li>
+  <li><strong>No hay manifiesto que mantener.</strong> El hash vive en el objeto git,
+no en un archivo separado que pueda desincronizarse.</li>
+</ul>
+
+<h3 id="94-auto-desactivación-por-convención-de-mensaje-de-commit">9.4 Auto-desactivación por convención de mensaje de commit</h3>
+
+<p>El comportamiento “este check no aplica a este PR” está codificado en
+el subject del primer commit de la rama, no en un archivo de
+configuración aparte. Si el subject es <code class="language-plaintext highlighter-rouge">chore(EXX-NNN): initialize
+branch for #N</code> (commit vacío que el workflow crea cuando el Issue no
+tiene tests pre-cargados), el check pasa con exit 0 y notice.</p>
+
+<p>Esto es importante porque:</p>
+
+<ul>
+  <li>No hay flag, label ni configuración que mantener en sincronía con la
+decisión “este Issue lleva tests o no”.</li>
+  <li>Issues legacy creados antes de adoptar el modelo pasan sin
+intervención: si el primer commit de su rama no es scaffold, el
+check no aplica.</li>
+  <li>El supervisor humano que crea un Issue ad-hoc (sin pasar por el
+flujo del orquestador, ver §11.5 del v1.6) no necesita configurar
+nada: si no hay commit scaffold, no hay check.</li>
+</ul>
+
+<h3 id="95-modificación-legítima-del-scaffold">9.5 Modificación legítima del scaffold</h3>
+
+<p>Hay dos vías legítimas para cambiar un test que ya fue scaffold:</p>
+
+<p><strong>Vía 1 (recomendada): el arquitecto humano modifica el scaffold
+directamente en un PR marcado <code class="language-plaintext highlighter-rouge">requires-human-review</code>.</strong> El PR toca
+los archivos del scaffold; el check de inmutabilidad falla; el
+arquitecto añade <code class="language-plaintext highlighter-rouge">size-override</code> y <code class="language-plaintext highlighter-rouge">requires-human-review</code> (este
+último suele aplicarse automáticamente por path-based protection si
+los tests están en paths protegidos). El merge es manual del
+arquitecto. Tras el merge, el hash inicial del scaffold deja de
+importar: el nuevo contenido es la nueva referencia para PRs
+posteriores que partan desde ese punto.</p>
+
+<p><strong>Vía 2 (alternativa): cerrar el Issue mal especificado, crear uno
+nuevo con el scaffold corregido.</strong> El Issue malo queda cerrado con
+label <code class="language-plaintext highlighter-rouge">jules</code> (la regla “la etiqueta <code class="language-plaintext highlighter-rouge">jules</code> nunca se retira”
+sigue intacta), formando parte de la historia. El Issue nuevo entra
+al flujo normal y produce su propia rama con su propio scaffold.</p>
+
+<p>La vía 1 es más eficiente operacionalmente; la vía 2 es más limpia
+conceptualmente. Cualquiera es válida.</p>
+
+<p><strong>Nota sobre frecuencia esperada:</strong> la combinación de O diseñando y
+D+G auditando el N2 antes de subir Issues hace muy poco probable que
+un scaffold llegue al repo mal especificado. Si pasa, es señal de que
+la auditoría manual falló y vale documentarlo como hallazgo para la
+revisión de épica con O.</p>
+
+<h3 id="96-no-hay-manifiesto-de-hashes">9.6 No hay manifiesto de hashes</h3>
+
+<p>La v1.1 mantenía archivos <code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/epic-NNN.txt</code>.
+<strong>En v1.2 estos archivos no existen.</strong> La inmutabilidad se verifica
+contra el commit scaffold en la propia historia de la rama del PR.</p>
+
+<p>Si un proyecto migra de v1.1 a v1.2:</p>
+
+<ol>
+  <li>Eliminar <code class="language-plaintext highlighter-rouge">docs/orchestrator/contract-hashes/</code> del repo.</li>
+  <li>Adoptar el nuevo modelo solo para Issues a partir de cierto punto;
+los Issues anteriores ya cerrados no requieren retrofit.</li>
+  <li>Actualizar <code class="language-plaintext highlighter-rouge">tools/ci/check_test_immutability.sh</code> (versión nueva,
+especificada arriba).</li>
+  <li>Quitar la mención de manifiesto de hashes del <code class="language-plaintext highlighter-rouge">AGENTS.md</code> del
+proyecto si existe.</li>
+</ol>
+
+<hr />
+
+<h2 id="10-workflow-de-github-actions-auditor-de-pr">10. Workflow de GitHub Actions: auditor de PR</h2>
+
+<p>El kit incluye un único workflow que invoca a D: <code class="language-plaintext highlighter-rouge">audit-pr.yml</code>. Se
+define en <code class="language-plaintext highlighter-rouge">.github/workflows/</code>. La especificación es funcional, no el
+YAML literal (cada kit derivado lo materializa).</p>
+
+<h3 id="101-audit-pryml--auditor-de-pr">10.1 <code class="language-plaintext highlighter-rouge">audit-pr.yml</code> — auditor de PR</h3>
+
+<p><strong>Trigger</strong>: <code class="language-plaintext highlighter-rouge">pull_request_target</code> con types <code class="language-plaintext highlighter-rouge">opened</code>, <code class="language-plaintext highlighter-rouge">synchronize</code>,
+<code class="language-plaintext highlighter-rouge">reopened</code>. Razón del <code class="language-plaintext highlighter-rouge">_target</code>: el workflow corre con los permisos del
+repositorio base, no del fork, lo que permite acceder al secret
+<code class="language-plaintext highlighter-rouge">DEEPSEEK_API_KEY</code>. <strong>Sin <code class="language-plaintext highlighter-rouge">_target</code>, el workflow no tiene acceso a
+secrets en PRs de forks</strong>.</p>
+
+<p><strong>Pasos</strong>:</p>
+
+<ol>
+  <li>Checkout del repo (ref del PR para tener el diff).</li>
+  <li>Obtener el diff del PR vía <code class="language-plaintext highlighter-rouge">gh pr diff</code>.</li>
+  <li>Construir el prompt: system prompt fijo del kit + AGENTS.md + ADRs
+vigentes en <code class="language-plaintext highlighter-rouge">docs/adr/</code> + N2 de la épica del Issue enlazado + diff
+del PR.</li>
+  <li>Llamar a D V4 Flash con <code class="language-plaintext highlighter-rouge">stream=True</code>,
+<code class="language-plaintext highlighter-rouge">stream_options={"include_usage": True}</code>, <code class="language-plaintext highlighter-rouge">temperature=0</code>,
+<code class="language-plaintext highlighter-rouge">max_tokens=8000</code>.</li>
+  <li>Parsear respuesta: extraer veredicto (<code class="language-plaintext highlighter-rouge">audit/pass</code> o <code class="language-plaintext highlighter-rouge">audit/fail</code>).</li>
+  <li>Aplicar label correspondiente al PR.</li>
+  <li>Publicar comentario con el razonamiento (visible) y el <code class="language-plaintext highlighter-rouge">usage</code>
+estructurado (<code class="language-plaintext highlighter-rouge">[telemetry]</code>).</li>
+</ol>
+
+<p><strong>Idempotencia</strong>: si el workflow se dispara múltiples veces
+(<code class="language-plaintext highlighter-rouge">synchronize</code> por nuevos commits), no se acumulan comentarios. Se
+actualiza el comentario existente identificable por marca
+<code class="language-plaintext highlighter-rouge">&lt;!-- deepseek-audit-comment --&gt;</code>.</p>
+
+<h3 id="102-decisión-workflow-propio-vs-hustcerdeepseek-review">10.2 Decisión: workflow propio vs <code class="language-plaintext highlighter-rouge">hustcer/deepseek-review</code></h3>
+
+<p>La acción <code class="language-plaintext highlighter-rouge">hustcer/deepseek-review</code> está disponible en Marketplace y
+funciona técnicamente, pero presenta tres problemas para producción:</p>
+
+<ul>
+  <li><strong>No certificada por GitHub</strong>: tercer-party con acceso a nuestra API
+key.</li>
+  <li><strong>Modelo por defecto es <code class="language-plaintext highlighter-rouge">deepseek-chat</code></strong> (alias legacy que se
+retira el 24 de julio de 2026).</li>
+  <li><strong>Non-streaming por defecto</strong>: pierde la telemetría granular
+(<code class="language-plaintext highlighter-rouge">reasoning_tokens</code>, <code class="language-plaintext highlighter-rouge">usage</code> chunked) que el v1.6 requiere.</li>
+</ul>
+
+<p><strong>Recomendación operacional</strong>:</p>
+
+<ul>
+  <li><strong>Prototipo (semanas iniciales)</strong>: usar <code class="language-plaintext highlighter-rouge">hustcer/deepseek-review</code> con
+override del modelo a <code class="language-plaintext highlighter-rouge">deepseek-v4-flash</code> y sistema custom. Valida
+end-to-end rápidamente.</li>
+  <li><strong>Producción (cuando el prototipo esté validado)</strong>: workflow propio
+que llama directamente a la API de D vía el SDK OpenAI-compatible.
+Más control, sin dependencia de tercero, telemetría completa.</li>
+</ul>
+
+<p>La transición prototipo → propio se hace cuando el flujo básico está
+validado y antes de añadir el segundo proyecto al portafolio.</p>
+
+<hr />
+
+<h2 id="11-system-prompt-estructura-y-versionado">11. System prompt: estructura y versionado</h2>
+
+<h3 id="111-ubicación">11.1 Ubicación</h3>
+
+<p>El system prompt del auditor de PR vive como archivo versionado del
+kit base:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>tools/auditor-prompts/
+└── pr-auditor-system.md
+</code></pre></div></div>
+
+<p>Este archivo es la fuente de verdad. El workflow lo lee y lo pasa al
+cliente D. Cualquier cambio se hace vía PR contra el repo del kit, no
+en línea.</p>
+
+<p>(Los prompts manuales para chat — <code class="language-plaintext highlighter-rouge">Prompt_Auditoria_Documentos_D_y_G.md</code>
+y <code class="language-plaintext highlighter-rouge">Prompt_Revision_de_Epica_con_O.md</code> — viven separadamente, no son
+inputs de este workflow.)</p>
+
+<h3 id="112-estructura-recomendada">11.2 Estructura recomendada</h3>
+
+<p>El system prompt del auditor de PR incluye, en este orden fijo:</p>
+
+<ol>
+  <li><strong>Rol</strong>: una frase (“Eres el auditor de PRs del enjambre…”).</li>
+  <li><strong>Mentalidad</strong>: la consigna “razonable, no perfecto” explícita.</li>
+  <li><strong>Checklist binario</strong>: la lista de categorías graves que disparan
+<code class="language-plaintext highlighter-rouge">audit/fail</code>. Cualquier cosa fuera de esta lista es comentario, no
+rechazo.</li>
+  <li><strong>Regla de reevaluación post-corrección</strong>: las críticas técnicas
+válidas no se anulan por correcciones factuales.</li>
+  <li><strong>Formato de salida</strong>: estructura exacta del veredicto.</li>
+</ol>
+
+<h3 id="113-versionado">11.3 Versionado</h3>
+
+<p>Cuando se calibre el prompt (ajustes para reducir falsos positivos,
+añadir categorías graves descubiertas en operación), el cambio se
+versiona explícitamente en el filename:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pr-auditor-system.md         (versión actual)
+pr-auditor-system.v1.md      (versión anterior, archivada)
+</code></pre></div></div>
+
+<p>Esto permite A/B testing en cartera: aplicar el nuevo prompt en un
+proyecto, mantener el anterior en otros, comparar métricas. Importante:
+cambios al prompt invalidan cache; planear la migración para un
+período de baja carga.</p>
+
+<hr />
+
+<h2 id="12-cache-invalidation-y-rolling-updates">12. Cache invalidation y rolling updates</h2>
+
+<p>Cuando cambia algo en el prefijo cacheado (system prompt, <code class="language-plaintext highlighter-rouge">AGENTS.md</code>,
+ADRs base), las primeras llamadas tras el cambio son cache miss. El
+costo de esa transición se debe planear, no asumir.</p>
+
+<p><strong>Patrón recomendado</strong>:</p>
+
+<ul>
+  <li>Cambios planificables (calibración de prompts, refactor de
+<code class="language-plaintext highlighter-rouge">AGENTS.md</code>) se hacen al final de una sesión activa, cuando el flujo
+del agente está pausado. La primera llamada del lote siguiente paga
+el miss; el resto del lote hitea.</li>
+  <li>Cambios reactivos (ADR nuevo durante una sesión activa) aceptan el
+costo inmediato. Es &lt;$0.10 en términos absolutos; no justifica
+retrasar.</li>
+</ul>
+
+<p><strong>Cache invalidation NO documentada</strong>: si D decide invalidar caches
+por su lado (mantenimiento del proveedor), no hay forma de saberlo. El
+primer indicador es subida abrupta de costos. La telemetría detecta
+esto si se monitorea <code class="language-plaintext highlighter-rouge">prompt_tokens</code> agregados por sesión.</p>
+
+<hr />
+
+<h2 id="13-idempotencia-y-manejo-de-errores">13. Idempotencia y manejo de errores</h2>
+
+<h3 id="131-comentarios-de-auditoría-idempotentes">13.1 Comentarios de auditoría idempotentes</h3>
+
+<p>El workflow que publica comentario al PR usa marca HTML identificable:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;!-- deepseek-audit-comment --&gt;
+[contenido del comentario]
+</code></pre></div></div>
+
+<p>En cada ejecución, antes de publicar, el workflow busca un comentario
+con esa marca y lo actualiza si existe; lo crea si no. Esto evita
+acumulación de comentarios en PRs largos con muchas iteraciones de J.</p>
+
+<h3 id="132-errores-de-red-durante-streaming">13.2 Errores de red durante streaming</h3>
+
+<p>Si la conexión se rompe mid-stream:</p>
+
+<ul>
+  <li>El workflow registra el chunk recibido hasta ese momento (puede ser
+parcial pero útil para debugging).</li>
+  <li>Reintenta la llamada completa con backoff.</li>
+  <li>Si el reintento sucede, el comentario se actualiza con la respuesta
+completa (no se acumula).</li>
+</ul>
+
+<h3 id="133-stateless-por-pr">13.3 Stateless por PR</h3>
+
+<p>Cada audit es independiente. El workflow no mantiene historial de
+auditorías previas del mismo PR ni de PRs hermanos. El contexto
+necesario está en el prefijo cacheado (<code class="language-plaintext highlighter-rouge">AGENTS.md</code>, ADRs) más el
+contenido específico del PR.</p>
+
+<p>Esto evita “memoria del auditor”, que podría introducir drift o sesgos
+acumulados. Si se necesita contexto cross-PR (ej. “este es el tercer
+PR de esta épica”), se incluye en el user message, no en el system.</p>
+
+<hr />
+
+<h2 id="14-telemetría-formato-del-comentario-telemetry">14. Telemetría: formato del comentario <code class="language-plaintext highlighter-rouge">[telemetry]</code></h2>
+
+<p>El comentario que publica el auditor al cerrar tiene estructura exacta
+para facilitar parseo posterior:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[telemetry]
+auditor: pr-auditor
+model: deepseek-v4-flash
+prompt_tokens: N
+completion_tokens: N
+reasoning_tokens: 0
+cache_hit_inferred: true | false
+result: pass | fail
+duration_seconds: N
+trigger: opened | synchronize | manual
+</code></pre></div></div>
+
+<p>Buscable con <code class="language-plaintext highlighter-rouge">gh pr list --search "[telemetry]"</code>. Un script de
+agregación (a producirse cuando se tenga el primer proyecto en
+operación) parsea estos comentarios cross-proyecto y produce CSV o
+markdown.</p>
+
+<hr />
+
+<h2 id="15-resumen-y-orden-de-implementación">15. Resumen y orden de implementación</h2>
+
+<h3 id="151-resumen">15.1 Resumen</h3>
+
+<p>D se integra con un workflow (<code class="language-plaintext highlighter-rouge">audit-pr.yml</code>) que invoca el SDK
+OpenAI-compatible apuntando al endpoint de D. La economía depende del
+<strong>prefix caching byte-idéntico</strong> (system prompt + ADRs + AGENTS.md).
+La telemetría se captura vía streaming con <code class="language-plaintext highlighter-rouge">include_usage</code> y se publica
+como comentario estructurado en cada PR.</p>
+
+<p>La inmutabilidad de tests pre-cargados se verifica por blob SHA
+per-archivo en el script <code class="language-plaintext highlighter-rouge">tools/ci/check_test_immutability.sh</code>, que se
+auto-desactiva cuando el primer commit de la rama no es un scaffold
+(convención de mensaje de commit).</p>
+
+<h3 id="152-orden-de-implementación">15.2 Orden de implementación</h3>
+
+<ol>
+  <li><strong>Primera semana</strong>: secret <code class="language-plaintext highlighter-rouge">DEEPSEEK_API_KEY</code> configurado. System
+prompt versionado en <code class="language-plaintext highlighter-rouge">tools/auditor-prompts/</code>. Workflow
+<code class="language-plaintext highlighter-rouge">prepare-issue-branch.yml</code> y script <code class="language-plaintext highlighter-rouge">check_test_immutability.sh</code>
+validados.</li>
+  <li><strong>Primera y segunda semana</strong>: prototipo de <code class="language-plaintext highlighter-rouge">audit-pr.yml</code> usando
+<code class="language-plaintext highlighter-rouge">hustcer/deepseek-review</code> con override de modelo y prompt. Validar
+comentarios, labels, y captura de telemetría.</li>
+  <li><strong>Tras el prototipo validado</strong>: reemplazar <code class="language-plaintext highlighter-rouge">audit-pr.yml</code> por
+workflow propio (sin la acción de terceros).</li>
+  <li><strong>Primera épica real con el workflow activo</strong>: medir cache hit
+ratio real, costo por audit, tasa de falsos positivos. Ajustar
+prompt según datos.</li>
+</ol>
+
+<p>(Las referencias de tiempo son relativas al primer proyecto en
+operación, no a fechas calendario.)</p>
+
+<h3 id="153-criterio-de-aceptación-de-v12">15.3 Criterio de aceptación de v1.2</h3>
+
+<p>Esta especificación se considera materializada cuando, en operación
+real con un proyecto:</p>
+
+<ul>
+  <li>Cache hit ratio &gt;80% sostenido durante una sesión activa.</li>
+  <li>Costo de auditoría de PR &lt;$0.005 promedio (con cache hitteando).</li>
+  <li><code class="language-plaintext highlighter-rouge">reasoning_ratio</code> del auditor de PR = 0 (Flash no soporta thinking).</li>
+  <li>Cero modificaciones detectadas a archivos del scaffold por el
+guard de blob SHA en 50 PRs consecutivos.</li>
+  <li>Tasa de falsos positivos del auditor de PR &lt;15% (medida en
+comentarios <code class="language-plaintext highlighter-rouge">[telemetry]</code> agregados).</li>
+</ul>
+
+<p>Si cualquiera de estos criterios falla sostenidamente, se ajusta el
+prompt o el flujo correspondiente. No se reescribe el documento; se
+itera la implementación.</p>
