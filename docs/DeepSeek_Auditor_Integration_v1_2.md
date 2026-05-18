@@ -1,3 +1,9 @@
+---
+title: DeepSeek Auditor Integration
+permalink: /docs/deepseek-auditor/
+nav_order: 4
+---
+
 # DeepSeek Auditor Integration — v1.2
 
 > Especificación técnica de integración de DeepSeek (**D**) como

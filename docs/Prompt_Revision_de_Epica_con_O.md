@@ -1,3 +1,9 @@
+---
+title: Prompt — Revisión de Épica con O
+permalink: /docs/revision-epica/
+nav_order: 6
+---
+
 # Prompt para Revisión de Épica con O (y opcionalmente D)
 
 > Prompt destinado a sesiones de chat con Claude Opus (el rol **O** del

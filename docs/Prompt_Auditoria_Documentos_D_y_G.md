@@ -1,3 +1,9 @@
+---
+title: Prompt — Auditoría de Documentos D+G
+permalink: /docs/auditoria-docs/
+nav_order: 5
+---
+
 # Prompt de Auditoría de Documentos con DeepSeek y Gemini
 
 > Prompt usado en **chat manual** por el arquitecto humano para

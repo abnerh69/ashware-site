@@ -1,3 +1,7 @@
+---
+published: false
+---
+
 # Paquete v1.6 — Documentos del Enjambre de LLMs
 
 > Versión consolidada de los documentos de arquitectura tras dos

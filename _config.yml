@@ -1,0 +1,33 @@
+title: ashware
+description: Metodología operacional para arquitectos de software que orquestan enjambres de LLMs.
+url: "https://ashware.org"
+baseurl: ""
+lang: es
+
+remote_theme: just-the-docs/just-the-docs
+
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Just the Docs settings
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+
+aux_links:
+  "GitHub":
+    - "https://github.com/abnerh69/ashware-site"
+
+footer_content: "© 2026 Abner — ashware.org"
+
+# Archivos del repo que no son páginas del sitio
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+  - node_modules/
+  - README.md
+  - .gitignore
+  - ashware-setup.sh

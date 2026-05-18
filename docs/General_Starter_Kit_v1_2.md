@@ -1,3 +1,9 @@
+---
+title: General Starter Kit
+permalink: /docs/starter-kit/
+nav_order: 3
+---
+
 # General Starter Kit — v1.2
 
 > Especificación canónica, agnóstica de plataforma, del starter_kit que

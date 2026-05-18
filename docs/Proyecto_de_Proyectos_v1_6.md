@@ -1,3 +1,9 @@
+---
+title: Proyecto de Proyectos
+permalink: /docs/proyecto/
+nav_order: 2
+---
+
 # Proyecto de Proyectos — v1.6
 
 > Plan estratégico para desarrollar proyectos en cartera como
